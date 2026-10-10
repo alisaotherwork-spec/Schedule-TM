@@ -74,6 +74,29 @@ export async function testConnection() {
 }
 testConnection();
 
+/**
+ * Recursively removes any keys with `undefined` values so Firestore setDoc / updateDoc
+ * never throws "Unsupported field value: undefined".
+ */
+export function sanitizeForFirestore<T>(val: T): T {
+  if (val === undefined || val === null) {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof val === 'object' && !(val instanceof Date)) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (v !== undefined) {
+        res[k] = sanitizeForFirestore(v);
+      }
+    }
+    return res as T;
+  }
+  return val;
+}
+
 // Persistence helpers
 export const subscribeStaff = (
   callback: (staffList: Staff[]) => void,
@@ -99,7 +122,8 @@ export const subscribeStaff = (
 export const saveStaff = async (staff: Staff) => {
   const path = `staff/${staff.id}`;
   try {
-    await setDoc(doc(db, 'staff', staff.id), staff);
+    const cleanData = sanitizeForFirestore(staff);
+    await setDoc(doc(db, 'staff', staff.id), cleanData);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -121,7 +145,10 @@ export const replaceAllStaffInFirestore = async (newStaffList: Staff[]) => {
     const deletePromises = existingSnap.docs.map((d) => deleteDoc(d.ref));
     await Promise.all(deletePromises);
 
-    const savePromises = newStaffList.map((s) => setDoc(doc(db, 'staff', s.id), s));
+    const savePromises = newStaffList.map((s) => {
+      const cleanData = sanitizeForFirestore(s);
+      return setDoc(doc(db, 'staff', s.id), cleanData);
+    });
     await Promise.all(savePromises);
   } catch (err) {
     console.warn('Failed to replaceAllStaffInFirestore:', err);
@@ -152,7 +179,8 @@ export const subscribeShiftTypes = (
 export const saveShiftType = async (shiftType: ShiftType) => {
   const path = `shiftTypes/${shiftType.id}`;
   try {
-    await setDoc(doc(db, 'shiftTypes', shiftType.id), shiftType);
+    const cleanData = sanitizeForFirestore(shiftType);
+    await setDoc(doc(db, 'shiftTypes', shiftType.id), cleanData);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -194,7 +222,8 @@ export const subscribeSchedule = (
 export const saveSchedule = async (schedule: MonthSchedule) => {
   const path = `schedules/${schedule.id}`;
   try {
-    await setDoc(doc(db, 'schedules', schedule.id), schedule);
+    const cleanData = sanitizeForFirestore(schedule);
+    await setDoc(doc(db, 'schedules', schedule.id), cleanData);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }

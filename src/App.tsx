@@ -68,13 +68,23 @@ export default function App() {
     }
   });
 
-  const [labSchedule, setLabSchedule] = useState<MonthSchedule>(() =>
-    generateInitialSchedule('lab', yearMonth)
-  );
+  const [labSchedule, setLabSchedule] = useState<MonthSchedule>(() => {
+    try {
+      const saved = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
+      return saved ? JSON.parse(saved) : generateInitialSchedule('lab', yearMonth);
+    } catch {
+      return generateInitialSchedule('lab', yearMonth);
+    }
+  });
 
-  const [donorSchedule, setDonorSchedule] = useState<MonthSchedule>(() =>
-    generateInitialSchedule('donor', yearMonth)
-  );
+  const [donorSchedule, setDonorSchedule] = useState<MonthSchedule>(() => {
+    try {
+      const saved = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
+      return saved ? JSON.parse(saved) : generateInitialSchedule('donor', yearMonth);
+    } catch {
+      return generateInitialSchedule('donor', yearMonth);
+    }
+  });
 
   // Modals
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -97,13 +107,24 @@ export default function App() {
           );
 
         if (list && list.length > 0 && !hasLegacyStaff) {
-          setStaffList(list);
-          localStorage.setItem('bloodbank_staff', JSON.stringify(list));
+          const sorted = [...list].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+          setStaffList(sorted);
+          localStorage.setItem('bloodbank_staff', JSON.stringify(sorted));
         } else if (!hasMigrated) {
           hasMigrated = true;
-          setStaffList(INITIAL_STAFF);
-          localStorage.setItem('bloodbank_staff', JSON.stringify(INITIAL_STAFF));
-          replaceAllStaffInFirestore(INITIAL_STAFF).catch(console.warn);
+          const saved = localStorage.getItem('bloodbank_staff');
+          let staffToUse = INITIAL_STAFF;
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed.length > 0 && !parsed.some((s: Staff) => s.id === 'staff-somchai')) {
+                staffToUse = parsed;
+              }
+            } catch {}
+          }
+          setStaffList(staffToUse);
+          localStorage.setItem('bloodbank_staff', JSON.stringify(staffToUse));
+          replaceAllStaffInFirestore(staffToUse).catch(console.warn);
         }
       },
       () => {
@@ -122,6 +143,17 @@ export default function App() {
           localStorage.setItem('bloodbank_shifts', JSON.stringify(types));
         } else {
           // Initialize seeds into Firestore if empty
+          const saved = localStorage.getItem('bloodbank_shifts');
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed.length > 0) {
+                setShiftTypes(parsed);
+                parsed.forEach((st: ShiftType) => saveShiftType(st).catch(console.warn));
+                return;
+              }
+            } catch {}
+          }
           INITIAL_SHIFT_TYPES.forEach((st) => saveShiftType(st).catch(console.warn));
         }
       },
@@ -130,64 +162,79 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync with Firestore for Lab Schedule
+  // Sync with Firestore for Lab Schedule (never overwrites user edits)
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
+      if (saved) {
+        setLabSchedule(JSON.parse(saved));
+      }
+    } catch {}
+
     const unsubscribe = subscribeSchedule(
       'lab',
       yearMonth,
       (sched) => {
         if (sched && sched.assignments) {
-          const hasAssignedCurrentStaff = staffList.some(
-            (s) => sched.assignments && sched.assignments[s.id]
-          );
-
-          if (!hasAssignedCurrentStaff && staffList.length > 0) {
-            const initial = generateInitialSchedule('lab', yearMonth);
-            setLabSchedule(initial);
-            saveSchedule(initial).catch(console.warn);
-          } else {
-            setLabSchedule(sched);
-          }
+          setLabSchedule(sched);
+          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(sched));
         } else {
-          // Generate initial for this month
+          const cached = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              setLabSchedule(parsed);
+              saveSchedule(parsed).catch(console.warn);
+              return;
+            } catch {}
+          }
           const initial = generateInitialSchedule('lab', yearMonth);
           setLabSchedule(initial);
+          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(initial));
           saveSchedule(initial).catch(console.warn);
         }
       },
       () => {}
     );
     return () => unsubscribe();
-  }, [yearMonth, staffList]);
+  }, [yearMonth]);
 
-  // Sync with Firestore for Donor Schedule
+  // Sync with Firestore for Donor Schedule (never overwrites user edits)
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
+      if (saved) {
+        setDonorSchedule(JSON.parse(saved));
+      }
+    } catch {}
+
     const unsubscribe = subscribeSchedule(
       'donor',
       yearMonth,
       (sched) => {
         if (sched && sched.assignments) {
-          const hasAssignedCurrentStaff = staffList.some(
-            (s) => sched.assignments && sched.assignments[s.id]
-          );
-
-          if (!hasAssignedCurrentStaff && staffList.length > 0) {
-            const initial = generateInitialSchedule('donor', yearMonth);
-            setDonorSchedule(initial);
-            saveSchedule(initial).catch(console.warn);
-          } else {
-            setDonorSchedule(sched);
-          }
+          setDonorSchedule(sched);
+          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(sched));
         } else {
+          const cached = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              setDonorSchedule(parsed);
+              saveSchedule(parsed).catch(console.warn);
+              return;
+            } catch {}
+          }
           const initial = generateInitialSchedule('donor', yearMonth);
           setDonorSchedule(initial);
+          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(initial));
           saveSchedule(initial).catch(console.warn);
         }
       },
       () => {}
     );
     return () => unsubscribe();
-  }, [yearMonth, staffList]);
+  }, [yearMonth]);
 
   // Handle Login & Logout
   const handleLogin = (user: UserSession) => {
@@ -231,6 +278,7 @@ export default function App() {
     } else {
       setDonorSchedule(updatedSchedule);
     }
+    localStorage.setItem(`bloodbank_sched_${roomId}_${yearMonth}`, JSON.stringify(updatedSchedule));
 
     try {
       await saveSchedule(updatedSchedule);
@@ -264,12 +312,6 @@ export default function App() {
     } catch (err) {
       console.warn('Firestore delete error:', err);
     }
-  };
-
-  const handleResetToDefaultStaff = async () => {
-    setStaffList(INITIAL_STAFF);
-    localStorage.setItem('bloodbank_staff', JSON.stringify(INITIAL_STAFF));
-    await replaceAllStaffInFirestore(INITIAL_STAFF);
   };
 
   // Shift Types CRUD
@@ -306,6 +348,7 @@ export default function App() {
     } else {
       setDonorSchedule(schedule);
     }
+    localStorage.setItem(`bloodbank_sched_${schedule.roomId}_${schedule.yearMonth}`, JSON.stringify(schedule));
     try {
       await saveSchedule(schedule);
     } catch (err) {

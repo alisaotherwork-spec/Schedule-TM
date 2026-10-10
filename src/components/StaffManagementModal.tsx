@@ -126,8 +126,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
         order: editingStaff?.order || staffList.length + 1,
         isActive,
         role,
-        password,
-        mustChangePassword,
+        ...(password !== undefined ? { password } : {}),
+        ...(mustChangePassword !== undefined ? { mustChangePassword } : {}),
       };
 
       await onSaveStaff(staffToSave);

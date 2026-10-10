@@ -189,29 +189,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </label>
             <input
               type="text"
-              list="modal-staff-name-list"
               value={englishName}
               onChange={(e) => {
                 setEnglishName(e.target.value);
                 setError('');
               }}
-              placeholder="พิมพ์ชื่อไทย หรือชื่ออังกฤษ (เช่น alisa, ณิชาภา, สาริสา)..."
+              placeholder="กรอกชื่อภาษาอังกฤษ หรือชื่อ-สกุล..."
               className="w-full px-3.5 py-2.5 text-sm bg-white border-2 border-[#E3D9CC] rounded-xl focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all font-medium text-stone-800 placeholder:text-stone-400"
               autoFocus
               required
             />
-            <datalist id="modal-staff-name-list">
-              {staffList.map((s) => (
-                <option key={`m-thai-${s.id}`} value={s.thaiName}>
-                  {s.englishName} ({s.position})
-                </option>
-              ))}
-              {staffList.map((s) => (
-                <option key={`m-eng-${s.id}`} value={s.englishName}>
-                  {s.thaiName}
-                </option>
-              ))}
-            </datalist>
           </div>
 
           {/* Password for alisa or Sub-Admin */}
