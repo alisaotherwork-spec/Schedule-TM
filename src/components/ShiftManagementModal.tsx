@@ -85,9 +85,9 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     e.preventDefault();
     const cleanCode = code.trim().toUpperCase();
 
-    // Constraint: 4 characters strictly
-    if (cleanCode.length !== 4) {
-      setError('รหัสเวรต้องมีความยาว 4 ตัวอักษรพอดี (เช่น MORN, EVN1, NGHT, OFFF)');
+    // Constraint: 1 to 4 characters
+    if (cleanCode.length < 1 || cleanCode.length > 4) {
+      setError('รหัสเวรต้องมีความยาว 1-4 ตัวอักษร (เช่น M, E1, MORN, EVN1, NGHT, OFFF)');
       return;
     }
 
@@ -152,7 +152,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                 กำหนดรหัสเวรและอัตราค่าตอบแทน (Shift Rates)
               </h2>
               <p className="text-xs text-stone-500">
-                รหัสเวร 4 ตัวอักษร กำหนดช่วงเวลา และอัตราค่าตอบแทนการปฏิบัติงานนอกเวลา (OT)
+                รหัสเวร 1-4 ตัวอักษร กำหนดช่วงเวลา และอัตราค่าตอบแทนการปฏิบัติงานนอกเวลา (OT)
               </p>
             </div>
           </div>
@@ -173,7 +173,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
             <div className="flex items-center justify-between border-b border-[#E8DEC8] pb-2">
               <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
                 <PaperStar size={16} />
-                {editingShift.code ? `แก้ไขรหัสเวร: ${editingShift.code}` : 'เพิ่มรหัสเวรใหม่ (4 ตัวอักษร)'}
+                {editingShift.code ? `แก้ไขรหัสเวร: ${editingShift.code}` : 'เพิ่มรหัสเวรใหม่ (1-4 ตัวอักษร)'}
               </span>
               <button
                 type="button"
@@ -187,14 +187,14 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  รหัสเวร (ต้องมี 4 ตัวอักษรพอดี)*
+                  รหัสเวร (1-4 ตัวอักษร)*
                 </label>
                 <input
                   type="text"
                   maxLength={4}
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="เช่น MORN, EVN1"
+                  placeholder="เช่น M, E1, MORN, EVN1"
                   className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500 font-mono font-bold tracking-wider uppercase text-center"
                   required
                 />
@@ -315,7 +315,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
           <table className="w-full text-xs text-left">
             <thead className="bg-[#F7F2EA] border-b border-[#E7DFD5] text-stone-700 font-semibold sticky top-0">
               <tr>
-                <th className="py-2.5 px-3">รหัสเวร (4 หลัก)</th>
+                <th className="py-2.5 px-3">รหัสเวร (1-4 หลัก)</th>
                 <th className="py-2.5 px-3">ชื่อเวร</th>
                 <th className="py-2.5 px-3">ช่วงเวลา</th>
                 <th className="py-2.5 px-3">เวลาปฏิบัติงาน</th>

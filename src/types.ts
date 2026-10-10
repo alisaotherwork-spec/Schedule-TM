@@ -21,7 +21,7 @@ export type ShiftPeriod = 'morning' | 'afternoon' | 'night' | 'other';
 
 export interface ShiftType {
   id: string;
-  code: string; // Strictly 4 characters e.g. "MORN", "EVN1", "NGHT", "OFFF"
+  code: string; // 1-4 characters e.g. "M", "E1", "MORN", "EVN1", "OFFF"
   name: string; // e.g. "เวรเช้า", "เวรบ่าย", "เวรดึก", "วันหยุด"
   period: ShiftPeriod;
   timeRange: string; // e.g. "08:30 - 16:30", "16:30 - 00:30", "00:30 - 08:30"
