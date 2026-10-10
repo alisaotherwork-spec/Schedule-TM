@@ -1,0 +1,6 @@
+{
+  "name": "Blood Bank Duty Scheduler - Thammasat University Hospital",
+  "description": "ระบบจัดตารางเวรสำหรับงานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ พร้อมระบบสรุปเวรประจำวัน ใบเบิกเงินค่าตอบแทน OT และส่งออกเอกสาร PDF",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

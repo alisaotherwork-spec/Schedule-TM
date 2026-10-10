@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Health check document
+    match /test/connection {
+      allow read: if true;
+    }
+    // Staff roster
+    match /staff/{staffId} {
+      allow read, write: if true;
+    }
+    // Shift types and OT rates
+    match /shiftTypes/{shiftTypeId} {
+      allow read, write: if true;
+    }
+    // Schedules
+    match /schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+    // Settings
+    match /systemSettings/{settingId} {
+      allow read, write: if true;
+    }
+  }
+}

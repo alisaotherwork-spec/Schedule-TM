@@ -1,0 +1,201 @@
+import { initializeApp } from 'firebase/app';
+import {
+  getFirestore,
+  doc,
+  getDocFromServer,
+  collection,
+  onSnapshot,
+  setDoc,
+  deleteDoc,
+  getDocs
+} from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
+import { Staff, ShiftType, MonthSchedule } from './types';
+
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: null,
+      email: null,
+      emailVerified: null,
+      isAnonymous: true,
+      tenantId: null,
+      providerInfo: [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// Test connection on boot as mandated by the Firebase skill
+export async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log('Firebase connection verified');
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('Firebase client is offline or running local fallback mode.');
+    } else {
+      console.warn('Firebase connection check:', error);
+    }
+  }
+}
+testConnection();
+
+// Persistence helpers
+export const subscribeStaff = (
+  callback: (staffList: Staff[]) => void,
+  onError?: (err: Error) => void
+) => {
+  const path = 'staff';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const staffList: Staff[] = [];
+      snapshot.forEach((d) => {
+        staffList.push(d.data() as Staff);
+      });
+      callback(staffList);
+    },
+    (err) => {
+      console.warn('Staff subscription error, using local fallback:', err);
+      onError?.(err);
+    }
+  );
+};
+
+export const saveStaff = async (staff: Staff) => {
+  const path = `staff/${staff.id}`;
+  try {
+    await setDoc(doc(db, 'staff', staff.id), staff);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+};
+
+export const removeStaff = async (staffId: string) => {
+  const path = `staff/${staffId}`;
+  try {
+    await deleteDoc(doc(db, 'staff', staffId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+};
+
+export const replaceAllStaffInFirestore = async (newStaffList: Staff[]) => {
+  const path = 'staff';
+  try {
+    const existingSnap = await getDocs(collection(db, path));
+    const deletePromises = existingSnap.docs.map((d) => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+
+    const savePromises = newStaffList.map((s) => setDoc(doc(db, 'staff', s.id), s));
+    await Promise.all(savePromises);
+  } catch (err) {
+    console.warn('Failed to replaceAllStaffInFirestore:', err);
+  }
+};
+
+export const subscribeShiftTypes = (
+  callback: (shiftTypes: ShiftType[]) => void,
+  onError?: (err: Error) => void
+) => {
+  const path = 'shiftTypes';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const list: ShiftType[] = [];
+      snapshot.forEach((d) => {
+        list.push(d.data() as ShiftType);
+      });
+      callback(list);
+    },
+    (err) => {
+      console.warn('Shift types subscription error, using local fallback:', err);
+      onError?.(err);
+    }
+  );
+};
+
+export const saveShiftType = async (shiftType: ShiftType) => {
+  const path = `shiftTypes/${shiftType.id}`;
+  try {
+    await setDoc(doc(db, 'shiftTypes', shiftType.id), shiftType);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+};
+
+export const removeShiftType = async (shiftTypeId: string) => {
+  const path = `shiftTypes/${shiftTypeId}`;
+  try {
+    await deleteDoc(doc(db, 'shiftTypes', shiftTypeId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+};
+
+export const subscribeSchedule = (
+  roomId: string,
+  yearMonth: string,
+  callback: (schedule: MonthSchedule | null) => void,
+  onError?: (err: Error) => void
+) => {
+  const scheduleId = `${roomId}_${yearMonth}`;
+  const path = `schedules/${scheduleId}`;
+  return onSnapshot(
+    doc(db, 'schedules', scheduleId),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        callback(snapshot.data() as MonthSchedule);
+      } else {
+        callback(null);
+      }
+    },
+    (err) => {
+      console.warn('Schedule subscription error, using local fallback:', err);
+      onError?.(err);
+    }
+  );
+};
+
+export const saveSchedule = async (schedule: MonthSchedule) => {
+  const path = `schedules/${schedule.id}`;
+  try {
+    await setDoc(doc(db, 'schedules', schedule.id), schedule);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+};
