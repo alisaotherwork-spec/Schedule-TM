@@ -49,20 +49,41 @@ export async function exportElementToPdf({
   const imgWidth = canvas.width;
   const imgHeight = canvas.height;
 
-  // Calculate scaled height
-  const ratio = imgWidth / imgHeight;
-  let targetWidth = printWidth;
-  let targetHeight = targetWidth / ratio;
+  // Calculate scaled height based on full printWidth
+  const scaledHeight = (imgHeight * printWidth) / imgWidth;
 
-  // If it exceeds printHeight in single page view, fit inside
-  if (targetHeight > printHeight) {
-    targetHeight = printHeight;
-    targetWidth = targetHeight * ratio;
+  // For Landscape (e.g. Monthly Schedule Grid): Scale to fit exactly on 1 page
+  if (orientation === 'landscape' || scaledHeight <= printHeight) {
+    let targetWidth = printWidth;
+    let targetHeight = scaledHeight;
+
+    if (targetHeight > printHeight) {
+      targetHeight = printHeight;
+      targetWidth = (targetHeight * imgWidth) / imgHeight;
+    }
+
+    const posX = margin + (printWidth - targetWidth) / 2;
+    const posY = margin + (printHeight - targetHeight) / 2;
+
+    pdf.addImage(imgData, 'PNG', posX, posY, targetWidth, targetHeight, undefined, 'FAST');
+  } else {
+    // For Multi-Page Portrait (e.g. Daily Duty Summary across many days):
+    // Standard sliced pagination across A4 pages
+    let heightLeft = scaledHeight;
+    let position = margin;
+    let page = 1;
+
+    pdf.addImage(imgData, 'PNG', margin, position, printWidth, scaledHeight, undefined, 'FAST');
+    heightLeft -= printHeight;
+
+    while (heightLeft > 0) {
+      position -= printHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', margin, position, printWidth, scaledHeight, undefined, 'FAST');
+      heightLeft -= printHeight;
+      page++;
+    }
   }
 
-  const posX = margin + (printWidth - targetWidth) / 2;
-  const posY = margin;
-
-  pdf.addImage(imgData, 'PNG', posX, posY, targetWidth, targetHeight, undefined, 'FAST');
   pdf.save(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
 }

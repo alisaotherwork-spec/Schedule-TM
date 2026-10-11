@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } from '../types';
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
+import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -428,197 +429,267 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       </div>
 
       {/* Floating Shift Selector Popover when a cell is clicked */}
-      {selectedCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[4px_6px_0px_rgba(70,60,50,0.2)] p-5 animate-scaleUp">
-            <div className="flex items-center justify-between pb-3 border-b border-[#EFE7DC] mb-3">
-              <div>
-                <h3 className="text-sm font-bold text-stone-800 font-['Prompt']">
-                  เลือกเวรวันที่ {selectedCell.day}
-                </h3>
-                <p className="text-xs text-stone-500">{selectedCell.staffName}</p>
-              </div>
-              <button
-                onClick={() => setSelectedCell(null)}
-                className="p-1 rounded-lg text-stone-400 hover:text-stone-700"
-              >
-                ✕
-              </button>
-            </div>
+      {selectedCell && (() => {
+        const targetStaff = staffList.find((s) => s.id === selectedCell.staffId);
+        const targetAbbr = getStaffPositionAbbr(targetStaff);
+        const posCfg = STANDARD_POSITIONS[targetAbbr];
+        const allowedShifts = shiftTypes.filter((st) => isShiftAllowedForStaff(st, targetStaff));
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {shiftTypes.map((st) => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => handleSelectShiftCode(st.code)}
-                  className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all hover:scale-[1.02] cursor-pointer ${st.color}`}
-                >
-                  <div>
-                    <span className="font-mono font-bold text-sm block">{st.code}</span>
-                    <span className="text-[11px] opacity-90">{st.name}</span>
-                  </div>
-                  {st.rate > 0 && (
-                    <span className="text-[10px] font-semibold bg-white/70 px-1.5 py-0.5 rounded-sm">
-                      {st.rate}฿
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
+            <div className="w-full max-w-lg bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[4px_6px_0px_rgba(70,60,50,0.2)] p-5 animate-scaleUp">
+              <div className="flex items-center justify-between pb-3 border-b border-[#EFE7DC] mb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-800 font-['Prompt'] flex items-center gap-2">
+                    <span>เลือกเวรวันที่ {selectedCell.day}</span>
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs font-semibold text-stone-700">{selectedCell.staffName}</span>
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md border ${posCfg.badgeClass}`}>
+                      [{targetAbbr}] {posCfg.thaiTitle}
                     </span>
-                  )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedCell(null)}
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer"
+                >
+                  ✕
                 </button>
-              ))}
-            </div>
+              </div>
 
-            <div className="mt-4 pt-3 border-t border-[#EFE7DC] flex justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => handleSelectShiftCode('')}
-                className="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
-              >
-                ล้างเวรออก (Clear)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedCell(null)}
-                className="px-4 py-1.5 bg-[#E8DEC8] hover:bg-[#DCD1BA] text-stone-800 rounded-lg text-xs font-medium cursor-pointer"
-              >
-                ปิด
-              </button>
+              <div className="mb-2 text-[11px] text-stone-500 flex items-center justify-between">
+                <span>เลือกได้เฉพาะเวรที่ตรงกับตำแหน่ง [{targetAbbr}] เท่านั้น ({allowedShifts.length} รูปแบบ):</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs max-h-[50vh] overflow-y-auto pr-1">
+                {allowedShifts.length === 0 ? (
+                  <div className="col-span-2 text-center py-6 text-stone-400">
+                    ไม่มีรหัสเวรที่กำหนดไว้สำหรับตำแหน่ง [{targetAbbr}]
+                  </div>
+                ) : (
+                  allowedShifts.map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => handleSelectShiftCode(st.code)}
+                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all hover:scale-[1.02] cursor-pointer ${st.color}`}
+                    >
+                      <div>
+                        <span className="font-mono font-bold text-sm block">{st.code}</span>
+                        <span className="text-[11px] opacity-90">{st.name}</span>
+                      </div>
+                      {st.rate > 0 && (
+                        <span className="text-[10px] font-semibold bg-white/70 px-1.5 py-0.5 rounded-sm shrink-0">
+                          {st.rate}฿
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-[#EFE7DC] flex justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSelectShiftCode('')}
+                  className="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                >
+                  ล้างเวรออก (Clear)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCell(null)}
+                  className="px-4 py-1.5 bg-[#E8DEC8] hover:bg-[#DCD1BA] text-stone-800 rounded-lg text-xs font-medium cursor-pointer"
+                >
+                  ปิด
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Offscreen printable A4 Landscape container specifically scaled for PDF generation */}
+      {/* Offscreen printable A4 Landscape container specifically scaled for PDF generation and printing */}
       <div className="fixed -left-[99999px] top-0 pointer-events-none z-[-100] opacity-100">
         <div
           id="printable-schedule-landscape"
-          className="p-8 bg-white text-stone-900 font-sans w-[1400px] min-h-[900px]"
+          className="p-6 bg-white text-stone-900 font-sans w-[1120px] min-h-[790px] flex flex-col justify-between"
         >
-          {/* Official Document Header */}
-          <div className="text-center pb-4 mb-4 border-b-2 border-stone-800">
-            <h1 className="text-xl font-bold">ตารางการปฏิบัติงานเจ้าหน้าที่ (Duty Schedule)</h1>
-            <h2 className="text-base font-semibold">
-              งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
-            </h2>
-            <p className="text-sm text-stone-600 mt-1">
-              แผนก: {roomTitle} • ประจำเดือน {formatYearMonthThai(yearMonth)}
-            </p>
+          <div>
+            {/* Official Document Header */}
+            <div className="text-center pb-3 mb-3 border-b-2 border-stone-800">
+              <h1 className="text-base font-bold font-['Prompt']">ตารางการปฏิบัติงานเจ้าหน้าที่ (Duty Schedule)</h1>
+              <h2 className="text-sm font-semibold">
+                งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
+              </h2>
+              <p className="text-xs text-stone-600 mt-0.5">
+                แผนก: {roomTitle} • ประจำเดือน {formatYearMonthThai(yearMonth)}
+              </p>
+            </div>
+
+            {/* Clean Landscape Table Matching the System Interface */}
+            <table className="w-full text-[9px] border-collapse border border-stone-400">
+              <thead>
+                <tr className="bg-[#F5ECE0] text-stone-800 font-bold">
+                  <th className="border border-stone-400 p-1 w-7 text-center">ลำดับ</th>
+                  <th className="border border-stone-400 p-1 min-w-[125px] text-left">ชื่อ-สกุล</th>
+                  <th className="border border-stone-400 p-1 min-w-[85px] text-left">ตำแหน่ง</th>
+                  {daysArray.map((day) => (
+                    <th
+                      key={day}
+                      className={`border border-stone-400 p-0.5 text-center font-mono ${
+                        isWeekend(yearMonth, day) ? 'bg-[#ECE2D0] font-bold text-amber-900' : ''
+                      }`}
+                    >
+                      <div className="text-[8px] leading-tight">{THAI_DAYS_SHORT[getDayOfWeek(yearMonth, day)]}</div>
+                      <div className="font-bold leading-tight">{day}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {/* Category 1 */}
+                <tr className="bg-stone-100 font-bold">
+                  <td colSpan={3 + daysInMonth} className="border border-stone-400 px-2 py-0.5 text-stone-800">
+                    1. นักเทคนิคการแพทย์ (MT)
+                  </td>
+                </tr>
+                {technologists.map((s, idx) => (
+                  <tr key={s.id} className="hover:bg-stone-50">
+                    <td className="border border-stone-400 p-0.5 text-center font-mono">{idx + 1}</td>
+                    <td className="border border-stone-400 px-1 py-0.5 font-medium">{s.thaiName}</td>
+                    <td className="border border-stone-400 px-1 py-0.5 text-stone-600">{s.position}</td>
+                    {daysArray.map((day) => {
+                      const code = schedule.assignments[s.id]?.[day];
+                      const st = shiftTypes.find((shift) => shift.code === code);
+                      return (
+                        <td
+                          key={day}
+                          className={`border border-stone-400 p-0.5 text-center font-mono ${
+                            isWeekend(yearMonth, day) ? 'bg-amber-50/30' : ''
+                          }`}
+                        >
+                          {code ? (
+                            <span
+                              className={`inline-block font-mono text-[8.5px] font-bold px-1 py-0.2 rounded-xs border ${
+                                st?.color || 'bg-stone-100 text-stone-700 border-stone-200'
+                              }`}
+                            >
+                              {code === 'OFFF' ? 'OFF' : code}
+                            </span>
+                          ) : (
+                            <span className="text-stone-300">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+
+                {/* Category 2 */}
+                <tr className="bg-stone-100 font-bold">
+                  <td colSpan={3 + daysInMonth} className="border border-stone-400 px-2 py-0.5 text-stone-800">
+                    2. พนักงานผู้ช่วยนักเทคนิคการแพทย์ (AMT) / ธุรการ (Office) / เจ้าหน้าที่ช่วยการบริการ (Service)
+                  </td>
+                </tr>
+                {assistants.map((s, idx) => (
+                  <tr key={s.id} className="hover:bg-stone-50">
+                    <td className="border border-stone-400 p-0.5 text-center font-mono">
+                      {technologists.length + idx + 1}
+                    </td>
+                    <td className="border border-stone-400 px-1 py-0.5 font-medium">{s.thaiName}</td>
+                    <td className="border border-stone-400 px-1 py-0.5 text-stone-600">{s.position}</td>
+                    {daysArray.map((day) => {
+                      const code = schedule.assignments[s.id]?.[day];
+                      const st = shiftTypes.find((shift) => shift.code === code);
+                      return (
+                        <td
+                          key={day}
+                          className={`border border-stone-400 p-0.5 text-center font-mono ${
+                            isWeekend(yearMonth, day) ? 'bg-amber-50/30' : ''
+                          }`}
+                        >
+                          {code ? (
+                            <span
+                              className={`inline-block font-mono text-[8.5px] font-bold px-1 py-0.2 rounded-xs border ${
+                                st?.color || 'bg-stone-100 text-stone-700 border-stone-200'
+                              }`}
+                            >
+                              {code === 'OFFF' ? 'OFF' : code}
+                            </span>
+                          ) : (
+                            <span className="text-stone-300">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+
+                {/* Category 3 */}
+                {partTimes.length > 0 && (
+                  <>
+                    <tr className="bg-stone-100 font-bold">
+                      <td colSpan={3 + daysInMonth} className="border border-stone-400 px-2 py-0.5 text-stone-800">
+                        3. เจ้าหน้าที่ Part-time
+                      </td>
+                    </tr>
+                    {partTimes.map((s, idx) => (
+                      <tr key={s.id} className="hover:bg-stone-50">
+                        <td className="border border-stone-400 p-0.5 text-center font-mono">
+                          {technologists.length + assistants.length + idx + 1}
+                        </td>
+                        <td className="border border-stone-400 px-1 py-0.5 font-medium">{s.thaiName}</td>
+                        <td className="border border-stone-400 px-1 py-0.5 text-stone-600">{s.position}</td>
+                        {daysArray.map((day) => {
+                          const code = schedule.assignments[s.id]?.[day];
+                          const st = shiftTypes.find((shift) => shift.code === code);
+                          return (
+                            <td
+                              key={day}
+                              className={`border border-stone-400 p-0.5 text-center font-mono ${
+                                isWeekend(yearMonth, day) ? 'bg-amber-50/30' : ''
+                              }`}
+                            >
+                              {code ? (
+                                <span
+                                  className={`inline-block font-mono text-[8.5px] font-bold px-1 py-0.2 rounded-xs border ${
+                                    st?.color || 'bg-stone-100 text-stone-700 border-stone-200'
+                                  }`}
+                                >
+                                  {code === 'OFFF' ? 'OFF' : code}
+                                </span>
+                              ) : (
+                                <span className="text-stone-300">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </>
+                )}
+              </tbody>
+            </table>
           </div>
 
-          {/* Clean Landscape Table */}
-          <table className="w-full text-[10px] border-collapse border border-stone-700">
-            <thead>
-              <tr className="bg-stone-200">
-                <th className="border border-stone-700 p-1 w-8 text-center">ลำดับ</th>
-                <th className="border border-stone-700 p-1 min-w-[140px] text-left">ชื่อ-สกุล</th>
-                <th className="border border-stone-700 p-1 min-w-[110px] text-left">ตำแหน่ง</th>
-                {daysArray.map((day) => (
-                  <th
-                    key={day}
-                    className={`border border-stone-700 p-1 text-center font-mono ${
-                      isWeekend(yearMonth, day) ? 'bg-stone-300 font-bold' : ''
-                    }`}
-                  >
-                    <div>{THAI_DAYS_SHORT[getDayOfWeek(yearMonth, day)]}</div>
-                    <div className="font-bold">{day}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {/* Category 1 */}
-              <tr className="bg-stone-100 font-bold">
-                <td colSpan={3 + daysInMonth} className="border border-stone-700 p-1">
-                  1. นักเทคนิคการแพทย์
-                </td>
-              </tr>
-              {technologists.map((s, idx) => (
-                <tr key={s.id}>
-                  <td className="border border-stone-700 p-1 text-center font-mono">{idx + 1}</td>
-                  <td className="border border-stone-700 p-1 font-medium">{s.thaiName}</td>
-                  <td className="border border-stone-700 p-1 text-stone-600">{s.position}</td>
-                  {daysArray.map((day) => (
-                    <td
-                      key={day}
-                      className={`border border-stone-700 p-0.5 text-center font-mono font-bold ${
-                        isWeekend(yearMonth, day) ? 'bg-stone-50' : ''
-                      }`}
-                    >
-                      {schedule.assignments[s.id]?.[day] || ''}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-
-              {/* Category 2 */}
-              <tr className="bg-stone-100 font-bold">
-                <td colSpan={3 + daysInMonth} className="border border-stone-700 p-1">
-                  2. พนักงานผู้ช่วยนักเทคนิคการแพทย์ ธุรการ เจ้าหน้าที่ช่วยการบริการ
-                </td>
-              </tr>
-              {assistants.map((s, idx) => (
-                <tr key={s.id}>
-                  <td className="border border-stone-700 p-1 text-center font-mono">
-                    {technologists.length + idx + 1}
-                  </td>
-                  <td className="border border-stone-700 p-1 font-medium">{s.thaiName}</td>
-                  <td className="border border-stone-700 p-1 text-stone-600">{s.position}</td>
-                  {daysArray.map((day) => (
-                    <td
-                      key={day}
-                      className={`border border-stone-700 p-0.5 text-center font-mono font-bold ${
-                        isWeekend(yearMonth, day) ? 'bg-stone-50' : ''
-                      }`}
-                    >
-                      {schedule.assignments[s.id]?.[day] || ''}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-
-              {/* Category 3 */}
-              <tr className="bg-stone-100 font-bold">
-                <td colSpan={3 + daysInMonth} className="border border-stone-700 p-1">
-                  3. เจ้าหน้าที่ Part-time
-                </td>
-              </tr>
-              {partTimes.map((s, idx) => (
-                <tr key={s.id}>
-                  <td className="border border-stone-700 p-1 text-center font-mono">
-                    {technologists.length + assistants.length + idx + 1}
-                  </td>
-                  <td className="border border-stone-700 p-1 font-medium">{s.thaiName}</td>
-                  <td className="border border-stone-700 p-1 text-stone-600">{s.position}</td>
-                  {daysArray.map((day) => (
-                    <td
-                      key={day}
-                      className={`border border-stone-700 p-0.5 text-center font-mono font-bold ${
-                        isWeekend(yearMonth, day) ? 'bg-stone-50' : ''
-                      }`}
-                    >
-                      {schedule.assignments[s.id]?.[day] || ''}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Signatures Footer */}
-          <div className="grid grid-cols-3 gap-6 pt-10 text-xs text-center">
+          {/* Official Signatures Footer (ลงลายเซ็นต์หัวหน้างานท้ายตาราง) */}
+          <div className="grid grid-cols-3 gap-6 pt-6 text-xs text-center shrink-0 border-t border-stone-200 mt-4">
             <div>
               <p className="mb-8">ลงชื่อ..........................................................</p>
               <p className="font-semibold">(..........................................................)</p>
-              <p className="text-stone-500">ผู้จัดทำตารางเวร</p>
+              <p className="text-stone-600 text-[11px]">ผู้จัดทำตารางเวร</p>
             </div>
             <div>
               <p className="mb-8">ลงชื่อ..........................................................</p>
               <p className="font-semibold">(..........................................................)</p>
-              <p className="text-stone-500">ผู้ตรวจสอบ</p>
+              <p className="text-stone-600 text-[11px]">ผู้ตรวจสอบ</p>
             </div>
             <div>
               <p className="mb-8">ลงชื่อ..........................................................</p>
-              <p className="font-semibold">( ทนพญ. อลิสา รักดี )</p>
-              <p className="text-stone-500">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
+              <p className="font-semibold">( ทนพญ.ณิชาภา เจียมจรรยา )</p>
+              <p className="text-stone-600 text-[11px]">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
             </div>
           </div>
         </div>

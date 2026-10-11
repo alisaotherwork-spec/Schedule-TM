@@ -244,87 +244,92 @@ export const OtClaimView: React.FC<OtClaimViewProps> = ({
         </div>
       </div>
 
-      {/* Offscreen printable A4 Portrait container specifically scaled for PDF generation */}
+      {/* Offscreen printable A4 Portrait container specifically scaled for PDF generation & printing */}
       <div className="fixed -left-[99999px] top-0 pointer-events-none z-[-100] opacity-100">
         <div
           id="printable-ot-claim-portrait"
-          className="p-10 bg-white text-stone-900 font-sans w-[800px] min-h-[1130px]"
+          className="p-8 bg-white text-stone-900 font-sans w-[800px] min-h-[1130px] flex flex-col justify-between"
         >
-          {/* Official Document Header */}
-          <div className="text-center pb-4 mb-5 border-b-2 border-stone-800">
-            <h1 className="text-lg font-bold">
-              ใบเบิกเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ (OT)
-            </h1>
-            <h2 className="text-sm font-semibold">
-              งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
-            </h2>
-            <p className="text-xs text-stone-600 mt-1">
-              ประจำเดือน {formatYearMonthThai(yearMonth)}
-            </p>
-          </div>
-
-          {/* Staff Info Banner */}
-          <div className="mb-4 text-xs flex justify-between pb-2 border-b border-stone-300">
-            <div>
-              <strong>ชื่อผู้ปฏิบัติงาน:</strong> {selectedStaff?.thaiName}
+          <div>
+            {/* Official Document Header */}
+            <div className="text-center pb-3 mb-4 border-b-2 border-stone-800">
+              <h1 className="text-base font-bold font-['Prompt']">
+                ใบเบิกเงินค่าตอบแทนการปฏิบัติงานนอกเวลาราชการ (OT)
+              </h1>
+              <h2 className="text-sm font-semibold">
+                งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
+              </h2>
+              <p className="text-xs text-stone-600 mt-0.5">
+                ประจำเดือน {formatYearMonthThai(yearMonth)}
+              </p>
             </div>
-            <div>
-              <strong>ตำแหน่ง:</strong> {selectedStaff?.position}
-            </div>
-          </div>
 
-          {/* 4-Column Clean Table */}
-          <table className="w-full text-xs border-collapse border border-stone-800 mb-6">
-            <thead>
-              <tr className="bg-stone-200 font-bold text-center">
-                <th className="border border-stone-800 p-2 w-1/4">1. ชื่อ สกุล</th>
-                <th className="border border-stone-800 p-2 w-1/5">2. วันปฏิบัติงาน</th>
-                <th className="border border-stone-800 p-2 w-2/5">3. ช่วงเวลาปฏิบัติงาน</th>
-                <th className="border border-stone-800 p-2 w-1/5">
-                  4. ช่องลงลายมือชื่อผู้ปฏิบัติงาน
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {otRows.map((row, idx) => (
-                <tr key={idx} className="border-b border-stone-400">
-                  <td className="border border-stone-800 p-2 font-medium">{row.staffName}</td>
-                  <td className="border border-stone-800 p-2 text-center font-mono">
-                    {row.workDate}
-                  </td>
-                  <td className="border border-stone-800 p-2">
-                    {row.timeRange} (อัตรา {row.rate} บ.)
-                  </td>
-                  <td className="border border-stone-800 p-2 text-center">
-                    <div className="h-4 border-b border-dashed border-stone-400 w-24 mx-auto" />
-                  </td>
+            {/* Staff Info Banner */}
+            <div className="mb-4 text-xs flex justify-between p-3 bg-[#FAF5EC] border border-[#E7DFD5] rounded-xl">
+              <div>
+                <strong>ชื่อผู้ปฏิบัติงาน:</strong> {selectedStaff?.thaiName}
+              </div>
+              <div>
+                <strong>ตำแหน่ง:</strong> {selectedStaff?.position}
+              </div>
+            </div>
+
+            {/* 4-Column Clean Table Matching the System Format */}
+            <table className="w-full text-xs border-collapse border border-stone-800 mb-4" style={{ pageBreakInside: 'auto' }}>
+              <thead style={{ display: 'table-header-group' }} className="bg-[#F5ECE0] font-bold text-center">
+                <tr style={{ pageBreakInside: 'avoid' }}>
+                  <th className="border border-stone-800 p-2 w-1/4">1. ชื่อ สกุล</th>
+                  <th className="border border-stone-800 p-2 w-1/5">2. วันปฏิบัติงาน</th>
+                  <th className="border border-stone-800 p-2 w-2/5">3. ช่วงเวลาปฏิบัติงาน</th>
+                  <th className="border border-stone-800 p-2 w-1/5">
+                    4. ช่องลงลายมือชื่อผู้ปฏิบัติงาน
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {otRows.map((row, idx) => (
+                  <tr key={idx} className="border-b border-stone-400" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                    <td className="border border-stone-800 p-2 font-medium">{row.staffName}</td>
+                    <td className="border border-stone-800 p-2 text-center font-mono">
+                      {row.workDate}
+                    </td>
+                    <td className="border border-stone-800 p-2">
+                      <div className="flex justify-between items-center">
+                        <span>{row.timeRange}</span>
+                        <span className="font-semibold text-emerald-800">({row.rate.toLocaleString()} บ.)</span>
+                      </div>
+                    </td>
+                    <td className="border border-stone-800 p-2 text-center">
+                      <div className="h-4 border-b border-dashed border-stone-400 w-24 mx-auto" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-          {/* Total Summary */}
-          <div className="p-3 bg-stone-100 border border-stone-400 rounded-sm text-xs flex justify-between font-bold mb-8">
-            <span>รวมการปฏิบัติงานนอกเวลาทั้งสิ้น: {otRows.length} เวร</span>
-            <span>รวมเป็นเงินค่าตอบแทนทั้งสิ้น: {totalOtAmount.toLocaleString()} บาท</span>
+            {/* Total Summary Banner Matching System */}
+            <div className="p-3 bg-[#FAF5EB] border border-[#DACFBF] rounded-xl text-xs flex justify-between font-bold mb-6">
+              <span>รวมการปฏิบัติงานนอกเวลาทั้งสิ้น: {otRows.length} เวร</span>
+              <span className="text-emerald-800">รวมเป็นเงินค่าตอบแทนทั้งสิ้น: {totalOtAmount.toLocaleString()} บาท</span>
+            </div>
           </div>
 
           {/* Official Signatures Grid */}
-          <div className="grid grid-cols-3 gap-6 pt-6 text-xs text-center">
+          <div className="grid grid-cols-3 gap-6 pt-6 text-xs text-center border-t border-stone-300 mt-6" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
             <div>
-              <p className="mb-10">ลงชื่อ..........................................................</p>
+              <p className="mb-8">ลงชื่อ..........................................................</p>
               <p className="font-semibold">({selectedStaff?.thaiName})</p>
-              <p className="text-stone-500">ผู้ขอเบิกเงิน</p>
+              <p className="text-stone-500 text-[11px]">ผู้ขอเบิกเงิน</p>
             </div>
             <div>
-              <p className="mb-10">ลงชื่อ..........................................................</p>
+              <p className="mb-8">ลงชื่อ..........................................................</p>
               <p className="font-semibold">(..........................................................)</p>
-              <p className="text-stone-500">ผู้ตรวจสอบการปฏิบัติงาน</p>
+              <p className="text-stone-500 text-[11px]">ผู้ตรวจสอบการปฏิบัติงาน</p>
             </div>
             <div>
-              <p className="mb-10">ลงชื่อ..........................................................</p>
-              <p className="font-semibold">( ทนพญ. อลิสา รักดี )</p>
-              <p className="text-stone-500">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
+              <p className="mb-8">ลงชื่อ..........................................................</p>
+              <p className="font-semibold">( ทนพญ.ณิชาภา เจียมจรรยา )</p>
+              <p className="text-stone-500 text-[11px]">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
             </div>
           </div>
         </div>

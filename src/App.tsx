@@ -31,6 +31,7 @@ import {
   PaperPlanet,
   PaperStar,
   PaperRocket,
+  SolarSystemBackground,
 } from './components/CuteSpaceDecorations';
 
 export default function App() {
@@ -314,6 +315,17 @@ export default function App() {
     }
   };
 
+  const handleReorderStaff = async (newOrderedList: Staff[]) => {
+    const normalized = newOrderedList.map((s, idx) => ({ ...s, order: idx + 1 }));
+    setStaffList(normalized);
+    localStorage.setItem('bloodbank_staff', JSON.stringify(normalized));
+    try {
+      await replaceAllStaffInFirestore(normalized);
+    } catch (err) {
+      console.warn('Firestore reorder staff error:', err);
+    }
+  };
+
   // Shift Types CRUD
   const handleSaveShiftType = async (shift: ShiftType) => {
     const exists = shiftTypes.find((s) => s.id === shift.id);
@@ -392,7 +404,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-stone-800 font-sans selection:bg-amber-200 selection:text-stone-900 flex flex-col">
+    <div className="min-h-screen bg-[#FDFBF7] text-stone-800 font-sans selection:bg-amber-200 selection:text-stone-900 flex flex-col relative">
+      {/* Solar System Papercraft Celestial Background */}
+      <SolarSystemBackground />
+
       {/* Navbar with Date Navigator and User Status */}
       <Navbar
         activeTab={activeTab}
@@ -500,6 +515,7 @@ export default function App() {
         currentUser={currentUser}
         onSaveStaff={handleSaveStaff}
         onDeleteStaff={handleDeleteStaff}
+        onReorderStaff={handleReorderStaff}
         onResetSubAdminPassword={handleResetSubAdminPassword}
       />
 

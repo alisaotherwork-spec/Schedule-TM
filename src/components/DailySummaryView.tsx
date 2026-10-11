@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Staff, ShiftType, RoomId, MonthSchedule } from '../types';
+import { Staff, ShiftType, RoomId, MonthSchedule, ShiftPeriod } from '../types';
 import {
   getDaysInMonth,
   formatYearMonthThai,
@@ -33,17 +33,24 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
   const daysInMonth = getDaysInMonth(yearMonth);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  // Helper to determine shift period for a code
-  const getPeriodForCode = (code: string | undefined): 'morning' | 'afternoon' | 'night' | null => {
-    if (!code || code === 'OFFF') return null;
+  // Helper to determine shift periods for a code (supports multiple periods)
+  const getPeriodsForCode = (code: string | undefined): Array<'morning' | 'afternoon' | 'night'> => {
+    if (!code || code === 'OFFF') return [];
     const st = shiftTypes.find((s) => s.code === code);
     if (!st) {
-      if (code.startsWith('M') || code.includes('01')) return 'morning';
-      if (code.startsWith('E') || code.includes('02')) return 'afternoon';
-      if (code.startsWith('N') || code.includes('LAB2')) return 'night';
-      return 'morning';
+      if (code.startsWith('M') || code.includes('01')) return ['morning'];
+      if (code.startsWith('E') || code.includes('02')) return ['afternoon'];
+      if (code.startsWith('N') || code.includes('LAB2')) return ['night'];
+      return ['morning'];
     }
-    return st.period === 'other' ? null : st.period;
+    const periodsArr: ShiftPeriod[] =
+      st.periods && st.periods.length > 0
+        ? st.periods
+        : st.period
+        ? [st.period]
+        : ['morning'];
+
+    return periodsArr.filter((p): p is 'morning' | 'afternoon' | 'night' => p !== 'other');
   };
 
   // Compile rows based on selected filters
@@ -84,10 +91,10 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
       }
 
       roomsToProcess.forEach(({ roomId, code }) => {
-        const period = getPeriodForCode(code);
-        const morningShift = period === 'morning' ? code || '' : '';
-        const afternoonShift = period === 'afternoon' ? code || '' : '';
-        const nightShift = period === 'night' ? code || '' : '';
+        const periods = getPeriodsForCode(code);
+        const morningShift = periods.includes('morning') ? code || '' : '';
+        const afternoonShift = periods.includes('afternoon') ? code || '' : '';
+        const nightShift = periods.includes('night') ? code || '' : '';
 
         // Only include if on duty or if showing all staff for this date
         rows.push({
@@ -277,48 +284,51 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
                         {row.position}
                       </td>
 
-                      {/* Col 4: เวรเช้า (มีเวร = ขาว, ไม่มีเวร = เทาอ่อน) */}
+                      {/* Col 4: เวรเช้า (มีเวร = ช่องว่างสีขาว ไม่แสดงรหัสเวร, ไม่มีเวร = สีเทาอ่อน) */}
                       <td
                         className={`py-2 px-3 text-center border-r border-[#EFE7DC] transition-colors ${
-                          hasMorning ? 'bg-white font-bold text-stone-900' : 'bg-stone-100 text-stone-400'
+                          hasMorning ? 'bg-white' : 'bg-stone-200/80'
                         }`}
+                        title={hasMorning ? `มีเวรเช้า (${row.morningShift})` : 'ไม่มีเวร'}
                       >
                         {hasMorning ? (
-                          <span className="inline-block px-2 py-0.5 rounded-sm border border-emerald-300 bg-emerald-50 text-emerald-900 font-mono text-[11px]">
-                            {row.morningShift}
-                          </span>
+                          <div className="h-5 w-full flex items-center justify-center">
+                            {/* ช่องว่างสีขาวตามมาตรฐานโรงพยาบาล */}
+                          </div>
                         ) : (
-                          <span className="text-stone-300 text-xs">-</span>
+                          <div className="h-5 w-full" />
                         )}
                       </td>
 
-                      {/* Col 5: เวรบ่าย */}
+                      {/* Col 5: เวรบ่าย (มีเวร = ช่องว่างสีขาว ไม่แสดงรหัสเวร, ไม่มีเวร = สีเทาอ่อน) */}
                       <td
                         className={`py-2 px-3 text-center border-r border-[#EFE7DC] transition-colors ${
-                          hasAfternoon ? 'bg-white font-bold text-stone-900' : 'bg-stone-100 text-stone-400'
+                          hasAfternoon ? 'bg-white' : 'bg-stone-200/80'
                         }`}
+                        title={hasAfternoon ? `มีเวรบ่าย (${row.afternoonShift})` : 'ไม่มีเวร'}
                       >
                         {hasAfternoon ? (
-                          <span className="inline-block px-2 py-0.5 rounded-sm border border-amber-300 bg-amber-50 text-amber-900 font-mono text-[11px]">
-                            {row.afternoonShift}
-                          </span>
+                          <div className="h-5 w-full flex items-center justify-center">
+                            {/* ช่องว่างสีขาวตามมาตรฐานโรงพยาบาล */}
+                          </div>
                         ) : (
-                          <span className="text-stone-300 text-xs">-</span>
+                          <div className="h-5 w-full" />
                         )}
                       </td>
 
-                      {/* Col 6: เวรดึก */}
+                      {/* Col 6: เวรดึก (มีเวร = ช่องว่างสีขาว ไม่แสดงรหัสเวร, ไม่มีเวร = สีเทาอ่อน) */}
                       <td
                         className={`py-2 px-3 text-center transition-colors ${
-                          hasNight ? 'bg-white font-bold text-stone-900' : 'bg-stone-100 text-stone-400'
+                          hasNight ? 'bg-white' : 'bg-stone-200/80'
                         }`}
+                        title={hasNight ? `มีเวรดึก (${row.nightShift})` : 'ไม่มีเวร'}
                       >
                         {hasNight ? (
-                          <span className="inline-block px-2 py-0.5 rounded-sm border border-indigo-300 bg-indigo-50 text-indigo-900 font-mono text-[11px]">
-                            {row.nightShift}
-                          </span>
+                          <div className="h-5 w-full flex items-center justify-center">
+                            {/* ช่องว่างสีขาวตามมาตรฐานโรงพยาบาล */}
+                          </div>
                         ) : (
-                          <span className="text-stone-300 text-xs">-</span>
+                          <div className="h-5 w-full" />
                         )}
                       </td>
                     </tr>
@@ -330,97 +340,117 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
         </div>
       </div>
 
-      {/* Offscreen container specifically for A4 Portrait PDF Export */}
+      {/* Offscreen container specifically for A4 Portrait PDF Export & Printing */}
       <div className="fixed -left-[99999px] top-0 pointer-events-none z-[-100] opacity-100">
         <div
           id="printable-daily-summary-portrait"
-          className="p-10 bg-white text-stone-900 font-sans w-[800px] min-h-[1130px]"
+          className="p-8 bg-white text-stone-900 font-sans w-[800px] min-h-[1130px] flex flex-col justify-between"
         >
-          {/* Hospital Header */}
-          <div className="text-center pb-4 mb-4 border-b-2 border-stone-800">
-            <h1 className="text-lg font-bold">ใบสรุปเวรการปฏิบัติงานประจำวัน</h1>
-            <h2 className="text-sm font-semibold">
-              งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
-            </h2>
-            <p className="text-xs text-stone-600 mt-1">
-              แผนก: {roomLabel} • ประจำเดือน {formatYearMonthThai(yearMonth)}{' '}
-              {selectedDay !== 'all' && `(${formatThaiDate(selectedDay, yearMonth)})`}
-            </p>
+          <div>
+            {/* Hospital Header */}
+            <div className="text-center pb-3 mb-4 border-b-2 border-stone-800">
+              <h1 className="text-base font-bold font-['Prompt']">ใบสรุปเวรการปฏิบัติงานประจำวัน</h1>
+              <h2 className="text-sm font-semibold">
+                งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
+              </h2>
+              <p className="text-xs text-stone-600 mt-1">
+                แผนก: {roomLabel} • ประจำเดือน {formatYearMonthThai(yearMonth)}{' '}
+                {selectedDay !== 'all' && `(${formatThaiDate(selectedDay, yearMonth)})`}
+              </p>
+            </div>
+
+            {/* Table explanation note */}
+            <div className="flex items-center justify-between text-[10px] text-stone-600 mb-2 px-1">
+              <span>* สรุปการปฏิบัติงานตามตารางเวรประจำวัน</span>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-3 bg-white border border-stone-400 inline-block" />
+                  <span>มีเวร (ช่องว่างสีขาว)</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-3 bg-stone-200 border border-stone-300 inline-block" />
+                  <span>ไม่มีเวร (สีเทา)</span>
+                </span>
+              </div>
+            </div>
+
+            {/* 6-Column Clean Table with sticky/repeating thead for multi-page */}
+            <table className="w-full text-xs border-collapse border border-stone-800" style={{ pageBreakInside: 'auto' }}>
+              <thead style={{ display: 'table-header-group' }} className="bg-[#F5ECE0] font-bold text-center">
+                <tr style={{ pageBreakInside: 'avoid' }}>
+                  <th className="border border-stone-800 p-2 w-20">1. วัน/เดือน</th>
+                  <th className="border border-stone-800 p-2 text-left min-w-[160px]">
+                    2. ชื่อ-สกุล เจ้าหน้าที่
+                  </th>
+                  <th className="border border-stone-800 p-2 text-left min-w-[130px]">3. ตำแหน่ง</th>
+                  <th className="border border-stone-800 p-2 w-20">4. เวรเช้า</th>
+                  <th className="border border-stone-800 p-2 w-20">5. เวรบ่าย</th>
+                  <th className="border border-stone-800 p-2 w-20">6. เวรดึก</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => {
+                  const hasMorn = Boolean(row.morningShift);
+                  const hasAft = Boolean(row.afternoonShift);
+                  const hasNgt = Boolean(row.nightShift);
+
+                  return (
+                    <tr key={idx} className="border-b border-stone-400" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                      <td className="border border-stone-800 p-1.5 text-center font-mono">
+                        {row.dateStr}
+                      </td>
+                      <td className="border border-stone-800 p-1.5 font-medium">
+                        {row.staffName}
+                        {selectedRoom === 'all' && ` (${row.roomName})`}
+                      </td>
+                      <td className="border border-stone-800 p-1.5 text-stone-600">{row.position}</td>
+
+                      {/* Request 8: Morning: white blank if has duty, light grey if no duty */}
+                      <td
+                        className={`border border-stone-800 p-1.5 text-center ${
+                          hasMorn ? 'bg-white' : 'bg-stone-200/80'
+                        }`}
+                      >
+                        {/* ช่องว่างสีขาว ไม่แสดงรหัสเวร */}
+                        <div className="h-4" />
+                      </td>
+
+                      {/* Request 8: Afternoon: white blank if has duty, light grey if no duty */}
+                      <td
+                        className={`border border-stone-800 p-1.5 text-center ${
+                          hasAft ? 'bg-white' : 'bg-stone-200/80'
+                        }`}
+                      >
+                        {/* ช่องว่างสีขาว ไม่แสดงรหัสเวร */}
+                        <div className="h-4" />
+                      </td>
+
+                      {/* Request 8: Night: white blank if has duty, light grey if no duty */}
+                      <td
+                        className={`border border-stone-800 p-1.5 text-center ${
+                          hasNgt ? 'bg-white' : 'bg-stone-200/80'
+                        }`}
+                      >
+                        {/* ช่องว่างสีขาว ไม่แสดงรหัสเวร */}
+                        <div className="h-4" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          {/* 6-Column Clean Table */}
-          <table className="w-full text-xs border-collapse border border-stone-800">
-            <thead>
-              <tr className="bg-stone-200 font-bold text-center">
-                <th className="border border-stone-800 p-2 w-20">1. วัน/เดือน</th>
-                <th className="border border-stone-800 p-2 text-left min-w-[160px]">
-                  2. ชื่อ-สกุล เจ้าหน้าที่
-                </th>
-                <th className="border border-stone-800 p-2 text-left min-w-[140px]">3. ตำแหน่ง</th>
-                <th className="border border-stone-800 p-2 w-24">4. เวรเช้า</th>
-                <th className="border border-stone-800 p-2 w-24">5. เวรบ่าย</th>
-                <th className="border border-stone-800 p-2 w-24">6. เวรดึก</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => {
-                const hasMorn = Boolean(row.morningShift);
-                const hasAft = Boolean(row.afternoonShift);
-                const hasNgt = Boolean(row.nightShift);
-
-                return (
-                  <tr key={idx} className="border-b border-stone-400">
-                    <td className="border border-stone-800 p-1.5 text-center font-mono">
-                      {row.dateStr}
-                    </td>
-                    <td className="border border-stone-800 p-1.5 font-medium">
-                      {row.staffName}
-                      {selectedRoom === 'all' && ` (${row.roomName})`}
-                    </td>
-                    <td className="border border-stone-800 p-1.5 text-stone-600">{row.position}</td>
-
-                    {/* Morning: Light grey if empty, white if has duty */}
-                    <td
-                      className={`border border-stone-800 p-1.5 text-center font-mono font-bold ${
-                        hasMorn ? 'bg-white' : 'bg-stone-100 text-stone-400'
-                      }`}
-                    >
-                      {hasMorn ? row.morningShift : '-'}
-                    </td>
-
-                    {/* Afternoon: Light grey if empty, white if has duty */}
-                    <td
-                      className={`border border-stone-800 p-1.5 text-center font-mono font-bold ${
-                        hasAft ? 'bg-white' : 'bg-stone-100 text-stone-400'
-                      }`}
-                    >
-                      {hasAft ? row.afternoonShift : '-'}
-                    </td>
-
-                    {/* Night: Light grey if empty, white if has duty */}
-                    <td
-                      className={`border border-stone-800 p-1.5 text-center font-mono font-bold ${
-                        hasNgt ? 'bg-white' : 'bg-stone-100 text-stone-400'
-                      }`}
-                    >
-                      {hasNgt ? row.nightShift : '-'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
           {/* Signature Footer */}
-          <div className="grid grid-cols-2 gap-8 pt-10 text-xs text-center">
+          <div className="grid grid-cols-2 gap-8 pt-8 text-xs text-center border-t border-stone-200 mt-6" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
             <div>
-              <p className="mb-10">ลงชื่อ..........................................................</p>
+              <p className="mb-8">ลงชื่อ..........................................................</p>
               <p className="font-semibold">(..........................................................)</p>
               <p className="text-stone-500">ผู้รายงานเวรประจำวัน</p>
             </div>
             <div>
-              <p className="mb-10">ลงชื่อ..........................................................</p>
-              <p className="font-semibold">( ทนพญ. อลิสา รักดี )</p>
+              <p className="mb-8">ลงชื่อ..........................................................</p>
+              <p className="font-semibold">( ทนพญ.ณิชาภา เจียมจรรยา )</p>
               <p className="text-stone-500">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
             </div>
           </div>

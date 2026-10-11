@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Staff, StaffCategory, RoomId, UserSession } from '../types';
-import { X, UserPlus, Trash2, Edit2, Check, Shield, Key, RotateCcw } from 'lucide-react';
+import { Staff, StaffCategory, RoomId, UserSession, PositionAbbr } from '../types';
+import { ALL_POSITION_ABBRS, STANDARD_POSITIONS, getStaffPositionAbbr } from '../utils/positionUtils';
+import { X, UserPlus, Trash2, Edit2, Check, Shield, Key, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react';
 import { CuteAlien, PaperStar } from './CuteSpaceDecorations';
 
 interface StaffManagementModalProps {
@@ -10,6 +11,7 @@ interface StaffManagementModalProps {
   currentUser: UserSession | null;
   onSaveStaff: (staff: Staff) => Promise<void>;
   onDeleteStaff: (staffId: string) => Promise<void>;
+  onReorderStaff?: (newStaffList: Staff[]) => Promise<void>;
   onResetSubAdminPassword?: (staffId: string) => Promise<void>;
 }
 
@@ -20,6 +22,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   currentUser,
   onSaveStaff,
   onDeleteStaff,
+  onReorderStaff,
   onResetSubAdminPassword,
 }) => {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
@@ -27,16 +30,19 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   const [englishName, setEnglishName] = useState('');
   const [category, setCategory] = useState<StaffCategory>('technologist');
   const [position, setPosition] = useState('');
+  const [positionAbbr, setPositionAbbr] = useState<PositionAbbr>('MT');
   const [room, setRoom] = useState<RoomId | 'both'>('both');
   const [isActive, setIsActive] = useState(true);
   const [isSubAdminRole, setIsSubAdminRole] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
 
   if (!isOpen) return null;
 
   const isSuperAdmin = currentUser?.isAdmin;
+  const sortedStaff = [...staffList].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
   const handleStartAdd = () => {
     setEditingStaff({
@@ -44,7 +50,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
       thaiName: '',
       englishName: '',
       category: 'technologist',
-      position: 'นักเทคนิคการแพทย์ปฏิบัติการ',
+      position: 'นักเทคนิคการแพทย์',
+      positionAbbr: 'MT',
       room: 'both',
       order: staffList.length + 1,
       isActive: true,
@@ -53,7 +60,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
     setThaiName('');
     setEnglishName('');
     setCategory('technologist');
-    setPosition('นักเทคนิคการแพทย์ปฏิบัติการ');
+    setPosition('นักเทคนิคการแพทย์');
+    setPositionAbbr('MT');
     setRoom('both');
     setIsActive(true);
     setIsSubAdminRole(false);
@@ -67,6 +75,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
     setEnglishName(staff.englishName);
     setCategory(staff.category);
     setPosition(staff.position);
+    const abbr = getStaffPositionAbbr(staff);
+    setPositionAbbr(abbr);
     setRoom(staff.room);
     setIsActive(staff.isActive);
     setIsSubAdminRole(staff.role === 'sub_admin');
@@ -74,10 +84,42 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
     setNotice(null);
   };
 
+  const handleSelectStandardPosition = (abbr: PositionAbbr) => {
+    const config = STANDARD_POSITIONS[abbr];
+    setPositionAbbr(abbr);
+    setPosition(config.thaiTitle);
+    setCategory(config.category);
+  };
+
   const handleCancelForm = () => {
     setEditingStaff(null);
     setError('');
     setNotice(null);
+  };
+
+  const handleMoveStaff = async (staffId: string, direction: 'up' | 'down') => {
+    if (isReordering || !onReorderStaff) return;
+    const currentIndex = sortedStaff.findIndex((s) => s.id === staffId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= sortedStaff.length) return;
+
+    setIsReordering(true);
+    try {
+      const cloned = [...sortedStaff];
+      const temp = cloned[currentIndex];
+      cloned[currentIndex] = cloned[targetIndex];
+      cloned[targetIndex] = temp;
+
+      // Re-index order numbers
+      const reordered = cloned.map((s, idx) => ({ ...s, order: idx + 1 }));
+      await onReorderStaff(reordered);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsReordering(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,7 +131,6 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
 
     setIsSaving(true);
     try {
-      // Determine role: Only Super Admin can change someone to sub_admin or staff
       let role = editingStaff?.role || 'staff';
       let password = editingStaff?.password;
       let mustChangePassword = editingStaff?.mustChangePassword;
@@ -100,7 +141,6 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
         } else {
           if (isSubAdminRole) {
             role = 'sub_admin';
-            // If newly assigned as sub-admin or has no password, default to 1234 and require change on first login
             if (!password || editingStaff?.role !== 'sub_admin') {
               password = '1234';
               mustChangePassword = true;
@@ -110,7 +150,6 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
           }
         }
       } else {
-        // Sub-admin cannot change anyone's admin status
         role = editingStaff?.role || 'staff';
         password = editingStaff?.password;
         mustChangePassword = editingStaff?.mustChangePassword;
@@ -121,7 +160,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
         thaiName: thaiName.trim(),
         englishName: englishName.trim(),
         category,
-        position: position.trim() || 'เจ้าหน้าที่งานบริการโลหิต',
+        position: position.trim() || STANDARD_POSITIONS[positionAbbr].thaiTitle,
+        positionAbbr,
         room,
         order: editingStaff?.order || staffList.length + 1,
         isActive,
@@ -177,9 +217,9 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   const getCategoryLabel = (cat: StaffCategory) => {
     switch (cat) {
       case 'technologist':
-        return '1. นักเทคนิคการแพทย์';
+        return '1. นักเทคนิคการแพทย์ (MT)';
       case 'assistant':
-        return '2. ผู้ช่วยฯ / ธุรการ / ช่วยบริการ';
+        return '2. ผู้ช่วยฯ (AMT) / ธุรการ (Office) / ช่วยบริการ (Service)';
       case 'part_time':
         return '3. เจ้าหน้าที่ Part-time';
     }
@@ -278,24 +318,43 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  กลุ่มบุคลากร (เรียงลำดับในตาราง)*
+              {/* Standard Position Selection with Abbreviation */}
+              <div className="sm:col-span-2">
+                <label className="block font-semibold text-stone-700 mb-1.5 flex items-center justify-between">
+                  <span>กำหนดตำแหน่งมาตรฐานและตัวย่อ (MT / AMT / Office / Service)*</span>
+                  <span className="text-[11px] text-stone-500 font-normal">
+                    * มีผลต่อการจำกัดเวรที่สามารถเลือกได้
+                  </span>
                 </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as StaffCategory)}
-                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500"
-                >
-                  <option value="technologist">1. นักเทคนิคการแพทย์ (MT)</option>
-                  <option value="assistant">2. พนักงานผู้ช่วยฯ / ธุรการ / ช่วยการบริการ</option>
-                  <option value="part_time">3. เจ้าหน้าที่ Part-time</option>
-                </select>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {ALL_POSITION_ABBRS.map((abbr) => {
+                    const cfg = STANDARD_POSITIONS[abbr];
+                    const isSelected = positionAbbr === abbr;
+                    return (
+                      <button
+                        key={abbr}
+                        type="button"
+                        onClick={() => handleSelectStandardPosition(abbr)}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          isSelected
+                            ? `${cfg.badgeClass} ring-2 ring-current font-bold shadow-xs`
+                            : 'bg-white border-[#DACFBF] text-stone-600 hover:bg-[#FAF4EB]'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-mono text-sm leading-tight">{abbr}</div>
+                          <div className="text-[10px] leading-tight opacity-80">{cfg.thaiTitle}</div>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  ตำแหน่ง / สายงาน
+                  ตำแหน่ง / สายงาน (ระบุเพิ่มเติมได้)
                 </label>
                 <input
                   type="text"
@@ -304,6 +363,21 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                   placeholder="เช่น นักเทคนิคการแพทย์ปฏิบัติการ"
                   className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  กลุ่มบุคลากร (สำหรับจัดหมวดหมู่ในตาราง)*
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as StaffCategory)}
+                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500"
+                >
+                  <option value="technologist">1. นักเทคนิคการแพทย์ (MT)</option>
+                  <option value="assistant">2. ผู้ช่วยฯ (AMT) / ธุรการ (Office) / ช่วยบริการ (Service)</option>
+                  <option value="part_time">3. เจ้าหน้าที่ Part-time</option>
+                </select>
               </div>
 
               <div>
@@ -407,37 +481,78 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                     list.map((staff) => {
                       const isSuper = staff.englishName.toLowerCase() === 'alisa';
                       const isSub = staff.role === 'sub_admin';
+                      const abbr = getStaffPositionAbbr(staff);
+                      const posCfg = STANDARD_POSITIONS[abbr];
+                      const globalIdx = sortedStaff.findIndex((s) => s.id === staff.id);
+                      const isFirst = globalIdx === 0;
+                      const isLast = globalIdx === sortedStaff.length - 1;
 
                       return (
                         <div
                           key={staff.id}
-                          className="px-3.5 py-2.5 flex items-center justify-between hover:bg-amber-50/40 transition-colors text-xs"
+                          className="px-3.5 py-2.5 flex items-center justify-between hover:bg-amber-50/40 transition-colors text-xs gap-2"
                         >
-                          <div className="space-y-0.5">
-                            <div className="font-semibold text-stone-800 flex items-center gap-2">
-                              <span>{staff.thaiName}</span>
-                              <span className="text-[11px] font-mono text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded-md">
-                                @{staff.englishName}
-                              </span>
+                          <div className="flex items-center gap-3">
+                            {/* Reorder Buttons (Move Up / Down) */}
+                            {onReorderStaff && (
+                              <div className="flex flex-col gap-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveStaff(staff.id, 'up')}
+                                  disabled={isFirst || isReordering}
+                                  className="p-1 rounded-sm text-stone-400 hover:text-amber-800 hover:bg-amber-100 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                  title="เลื่อนลำดับขึ้น (Move Up)"
+                                >
+                                  <ArrowUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveStaff(staff.id, 'down')}
+                                  disabled={isLast || isReordering}
+                                  className="p-1 rounded-sm text-stone-400 hover:text-amber-800 hover:bg-amber-100 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                  title="เลื่อนลำดับลง (Move Down)"
+                                >
+                                  <ArrowDown className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
 
-                              {isSuper && (
-                                <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-md border border-amber-300 font-bold flex items-center gap-0.5">
-                                  <Shield className="w-2.5 h-2.5 text-amber-700" /> Super Admin
-                                </span>
-                              )}
+                            {/* Order Number Badge */}
+                            <span className="w-6 text-center font-mono font-bold text-stone-400 text-[11px] shrink-0">
+                              #{globalIdx + 1}
+                            </span>
 
-                              {isSub && !isSuper && (
-                                <span className="text-[10px] px-1.5 py-0.2 bg-indigo-100 text-indigo-900 rounded-md border border-indigo-300 font-bold flex items-center gap-0.5">
-                                  <Shield className="w-2.5 h-2.5 text-indigo-600" /> ผู้ดูแลระบบย่อย
+                            <div className="space-y-0.5">
+                              <div className="font-semibold text-stone-800 flex items-center gap-2 flex-wrap">
+                                <span>{staff.thaiName}</span>
+                                <span className="text-[11px] font-mono text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded-md">
+                                  @{staff.englishName}
                                 </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-stone-500 flex items-center gap-2">
-                              <span>{staff.position}</span>
-                              <span>•</span>
-                              <span>
-                                ห้อง: {staff.room === 'both' ? 'ทั้ง 2 ห้อง' : staff.room === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'}
-                              </span>
+
+                                {/* Standard Position Abbreviation Badge */}
+                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md border ${posCfg.badgeClass}`}>
+                                  [{abbr}]
+                                </span>
+
+                                {isSuper && (
+                                  <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-md border border-amber-300 font-bold flex items-center gap-0.5">
+                                    <Shield className="w-2.5 h-2.5 text-amber-700" /> Super Admin
+                                  </span>
+                                )}
+
+                                {isSub && !isSuper && (
+                                  <span className="text-[10px] px-1.5 py-0.2 bg-indigo-100 text-indigo-900 rounded-md border border-indigo-300 font-bold flex items-center gap-0.5">
+                                    <Shield className="w-2.5 h-2.5 text-indigo-600" /> ผู้ดูแลระบบย่อย
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-stone-500 flex items-center gap-2">
+                                <span>{staff.position}</span>
+                                <span>•</span>
+                                <span>
+                                  ห้อง: {staff.room === 'both' ? 'ทั้ง 2 ห้อง' : staff.room === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
@@ -457,7 +572,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                             <button
                               onClick={() => handleStartEdit(staff)}
                               className="p-1.5 text-stone-600 hover:text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
-                              title="แก้ไขข้อมูล"
+                              title="แก้ไขข้อมูลและตำแหน่ง"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>

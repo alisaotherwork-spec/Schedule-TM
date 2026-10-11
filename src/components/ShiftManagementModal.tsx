@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ShiftType, ShiftPeriod } from '../types';
-import { X, Plus, Trash2, Edit2, Check, Clock, DollarSign, Tag } from 'lucide-react';
+import { ShiftType, ShiftPeriod, PositionAbbr } from '../types';
+import { ALL_POSITION_ABBRS, STANDARD_POSITIONS } from '../utils/positionUtils';
+import { X, Plus, Trash2, Edit2, Check, Clock, DollarSign, Tag, Users } from 'lucide-react';
 import { CuteAlien, PaperStar } from './CuteSpaceDecorations';
 
 interface ShiftManagementModalProps {
@@ -23,6 +24,13 @@ const COLOR_OPTIONS = [
   { label: 'เทาธรรมชาติ', value: 'bg-stone-100 text-stone-500 border-stone-200' },
 ];
 
+const PERIOD_OPTIONS: { id: ShiftPeriod; label: string; bg: string }[] = [
+  { id: 'morning', label: 'เวรเช้า (Morning)', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  { id: 'afternoon', label: 'เวรบ่าย (Afternoon)', bg: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { id: 'night', label: 'เวรดึก (Night)', bg: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { id: 'other', label: 'อื่นๆ / วันหยุด (Off/Other)', bg: 'bg-stone-50 text-stone-700 border-stone-200' },
+];
+
 export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   isOpen,
   onClose,
@@ -33,7 +41,8 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [editingShift, setEditingShift] = useState<ShiftType | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [period, setPeriod] = useState<ShiftPeriod>('morning');
+  const [selectedPeriods, setSelectedPeriods] = useState<ShiftPeriod[]>(['morning']);
+  const [allowedPositions, setAllowedPositions] = useState<PositionAbbr[]>(ALL_POSITION_ABBRS);
   const [timeRange, setTimeRange] = useState('');
   const [rate, setRate] = useState<number>(600);
   const [isOt, setIsOt] = useState(false);
@@ -49,6 +58,8 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
       code: '',
       name: '',
       period: 'morning',
+      periods: ['morning'],
+      allowedPositions: [...ALL_POSITION_ABBRS],
       timeRange: '08:30 - 16:30 น.',
       rate: 600,
       isOt: false,
@@ -56,7 +67,8 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     });
     setCode('');
     setName('');
-    setPeriod('morning');
+    setSelectedPeriods(['morning']);
+    setAllowedPositions([...ALL_POSITION_ABBRS]);
     setTimeRange('08:30 - 16:30 น.');
     setRate(600);
     setIsOt(false);
@@ -68,7 +80,20 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     setEditingShift(st);
     setCode(st.code);
     setName(st.name);
-    setPeriod(st.period);
+    const periodsArr: ShiftPeriod[] =
+      st.periods && st.periods.length > 0
+        ? st.periods
+        : st.period
+        ? [st.period]
+        : ['morning'];
+    setSelectedPeriods(periodsArr);
+
+    const posArr: PositionAbbr[] =
+      st.allowedPositions && st.allowedPositions.length > 0
+        ? st.allowedPositions
+        : [...ALL_POSITION_ABBRS];
+    setAllowedPositions(posArr);
+
     setTimeRange(st.timeRange);
     setRate(st.rate);
     setIsOt(st.isOt);
@@ -79,6 +104,28 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const handleCancelForm = () => {
     setEditingShift(null);
     setError('');
+  };
+
+  const togglePeriod = (p: ShiftPeriod) => {
+    if (selectedPeriods.includes(p)) {
+      if (selectedPeriods.length === 1) return;
+      setSelectedPeriods(selectedPeriods.filter((item) => item !== p));
+    } else {
+      setSelectedPeriods([...selectedPeriods, p]);
+    }
+  };
+
+  const togglePosition = (pos: PositionAbbr) => {
+    if (allowedPositions.includes(pos)) {
+      if (allowedPositions.length === 1) return;
+      setAllowedPositions(allowedPositions.filter((item) => item !== pos));
+    } else {
+      setAllowedPositions([...allowedPositions, pos]);
+    }
+  };
+
+  const handleSelectAllPositions = () => {
+    setAllowedPositions([...ALL_POSITION_ABBRS]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,13 +143,25 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
       return;
     }
 
+    if (selectedPeriods.length === 0) {
+      setError('กรุณาเลือกช่วงเวลาของเวรอย่างน้อย 1 ช่วงเวลา');
+      return;
+    }
+
+    if (allowedPositions.length === 0) {
+      setError('กรุณากำหนดตำแหน่งที่สามารถปฏิบัติเวรนี้ได้');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const shiftToSave: ShiftType = {
         id: editingShift?.id || `shift-${cleanCode.toLowerCase()}`,
         code: cleanCode,
         name: name.trim(),
-        period,
+        period: selectedPeriods[0],
+        periods: selectedPeriods,
+        allowedPositions: allowedPositions,
         timeRange: timeRange.trim() || '-',
         rate: Number(rate) || 0,
         isOt,
@@ -132,7 +191,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[4px_6px_0px_rgba(70,60,50,0.18)] p-6 overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-4xl max-h-[92vh] bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[4px_6px_0px_rgba(70,60,50,0.18)] p-6 overflow-hidden flex flex-col">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -149,10 +208,10 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2 font-['Prompt']">
-                กำหนดรหัสเวรและอัตราค่าตอบแทน (Shift Rates)
+                กำหนดรหัสเวร อัตราค่าตอบแทน และตำแหน่งที่ปฏิบัติเวร
               </h2>
               <p className="text-xs text-stone-500">
-                รหัสเวร 1-4 ตัวอักษร กำหนดช่วงเวลา และอัตราค่าตอบแทนการปฏิบัติงานนอกเวลา (OT)
+                รหัสเวร 1-4 ตัวอักษร • เลือกช่วงเวลาได้หลายอัน • เชื่อมโยงเวรเฉพาะตำแหน่ง (MT, AMT, Office, Service)
               </p>
             </div>
           </div>
@@ -169,7 +228,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
         {/* Form */}
         {editingShift && (
-          <form onSubmit={handleSubmit} className="p-4 my-3 bg-[#FAF5EC] border-2 border-[#E7DFD5] rounded-xl space-y-3 shrink-0">
+          <form onSubmit={handleSubmit} className="p-4 my-3 bg-[#FAF5EC] border-2 border-[#E7DFD5] rounded-xl space-y-3 shrink-0 overflow-y-auto max-h-[50vh]">
             <div className="flex items-center justify-between border-b border-[#E8DEC8] pb-2">
               <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
                 <PaperStar size={16} />
@@ -216,22 +275,6 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  ช่วงเวลาของเวร (สำหรับใบสรุป/ใบเบิก)*
-                </label>
-                <select
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value as ShiftPeriod)}
-                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500"
-                >
-                  <option value="morning">เวรเช้า (Morning)</option>
-                  <option value="afternoon">เวรบ่าย (Afternoon)</option>
-                  <option value="night">เวรดึก (Night)</option>
-                  <option value="other">อื่นๆ / วันหยุด (Off/Other)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">
                   เวลาปฏิบัติงาน (ช่วงเวลา)
                 </label>
                 <input
@@ -257,7 +300,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                 />
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block font-semibold text-stone-700 mb-1">
                   โทนสีป้ายกระดาษ (Badge Color)
                 </label>
@@ -273,6 +316,85 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Request 4: ช่องช่วงเวลาของเวร สามารถเลือกได้หลายอัน */}
+            <div className="pt-1">
+              <label className="block font-semibold text-stone-700 text-xs mb-1.5">
+                ช่องช่วงเวลาของเวร (สามารถเลือกได้หลายอัน)*
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {PERIOD_OPTIONS.map((po) => {
+                  const isChecked = selectedPeriods.includes(po.id);
+                  return (
+                    <button
+                      key={po.id}
+                      type="button"
+                      onClick={() => togglePeriod(po.id)}
+                      className={`px-3 py-2 rounded-lg border text-xs font-medium text-left flex items-center justify-between transition-all cursor-pointer ${
+                        isChecked
+                          ? `${po.bg} border-current ring-1 ring-amber-500 shadow-xs font-semibold`
+                          : 'bg-white border-[#E2D8C9] text-stone-600 hover:bg-[#FAF4EB]'
+                      }`}
+                    >
+                      <span>{po.label.split(' ')[0]}</span>
+                      <span className={`w-4 h-4 rounded-sm flex items-center justify-center text-[10px] border ${
+                        isChecked ? 'bg-amber-600 text-white border-amber-600' : 'border-stone-300'
+                      }`}>
+                        {isChecked && '✓'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Request 5: กำหนดตำแหน่งที่สามารถปฏิบัติเวรนี้ได้ (MT, AMT, Office, Service) */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-semibold text-stone-700 text-xs flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-stone-600" />
+                  <span>ตำแหน่งที่สามารถปฏิบัติเวรนี้ได้ (เฉพาะเวรที่ตรงกับตำแหน่งเท่านั้น)*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSelectAllPositions}
+                  className="text-[11px] text-amber-700 hover:underline cursor-pointer"
+                >
+                  เลือกทุกตำแหน่ง (All)
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {ALL_POSITION_ABBRS.map((pos) => {
+                  const isChecked = allowedPositions.includes(pos);
+                  const cfg = STANDARD_POSITIONS[pos];
+                  return (
+                    <button
+                      key={pos}
+                      type="button"
+                      onClick={() => togglePosition(pos)}
+                      className={`px-3 py-2 rounded-lg border text-xs font-medium text-left flex items-center justify-between transition-all cursor-pointer ${
+                        isChecked
+                          ? `${cfg.badgeClass} ring-1 ring-current shadow-xs font-bold`
+                          : 'bg-white border-[#E2D8C9] text-stone-600 hover:bg-[#FAF4EB]'
+                      }`}
+                    >
+                      <div>
+                        <span className="font-mono text-sm block">{pos}</span>
+                        <span className="text-[10px] opacity-80">{cfg.thaiTitle}</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-sm flex items-center justify-center text-[10px] border ${
+                        isChecked ? 'bg-amber-600 text-white border-amber-600' : 'border-stone-300'
+                      }`}>
+                        {isChecked && '✓'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-stone-500 mt-1">
+                * ระบบจะจำกัดให้ผู้จัดตารางเวรและเจ้าหน้าที่เลือกได้เฉพาะเวรที่ตรงกับตำแหน่งนี้เท่านั้น
+              </p>
             </div>
 
             <div className="flex items-center gap-2 pt-1">
@@ -318,6 +440,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                 <th className="py-2.5 px-3">รหัสเวร (1-4 หลัก)</th>
                 <th className="py-2.5 px-3">ชื่อเวร</th>
                 <th className="py-2.5 px-3">ช่วงเวลา</th>
+                <th className="py-2.5 px-3">ตำแหน่งที่เลือกได้</th>
                 <th className="py-2.5 px-3">เวลาปฏิบัติงาน</th>
                 <th className="py-2.5 px-3 text-right">ค่าเวร (บาท)</th>
                 <th className="py-2.5 px-3 text-center">ประเภท OT</th>
@@ -325,54 +448,87 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {shiftTypes.map((st) => (
-                <tr key={st.id} className="hover:bg-amber-50/40 transition-colors">
-                  <td className="py-2.5 px-3">
-                    <span className={`inline-block font-mono font-bold px-2 py-0.5 rounded-md border text-center ${st.color}`}>
-                      {st.code}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 font-medium text-stone-800">{st.name}</td>
-                  <td className="py-2.5 px-3 text-stone-600">
-                    {st.period === 'morning' ? 'เวรเช้า' : st.period === 'afternoon' ? 'เวรบ่าย' : st.period === 'night' ? 'เวรดึก' : 'อื่นๆ / Off'}
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-stone-600">{st.timeRange}</td>
-                  <td className="py-2.5 px-3 text-right font-semibold text-stone-800">
-                    {st.rate > 0 ? `${st.rate.toLocaleString()} ฿` : '-'}
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    {st.isOt ? (
-                      <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full font-medium border border-rose-200">
-                        OT นอกเวลา
+              {shiftTypes.map((st) => {
+                const periods = st.periods && st.periods.length > 0 ? st.periods : st.period ? [st.period] : ['morning'];
+                const allowed = st.allowedPositions && st.allowedPositions.length > 0 ? st.allowedPositions : ALL_POSITION_ABBRS;
+                const isAllPos = allowed.length === ALL_POSITION_ABBRS.length;
+
+                return (
+                  <tr key={st.id} className="hover:bg-amber-50/40 transition-colors">
+                    <td className="py-2.5 px-3">
+                      <span className={`inline-block font-mono font-bold px-2 py-0.5 rounded-md border text-center ${st.color}`}>
+                        {st.code}
                       </span>
-                    ) : (
-                      <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-600 rounded-full">
-                        ในเวลา/ปกติ
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <button
-                        onClick={() => handleStartEdit(st)}
-                        className="p-1.5 text-stone-600 hover:text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
-                        title="แก้ไข"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      {st.code !== 'OFFF' && (
-                        <button
-                          onClick={() => handleDelete(st.id, st.code)}
-                          className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="ลบ"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                    </td>
+                    <td className="py-2.5 px-3 font-medium text-stone-800">{st.name}</td>
+                    <td className="py-2.5 px-3 text-stone-600">
+                      <div className="flex flex-wrap gap-1">
+                        {periods.map((p) => (
+                          <span key={p} className="text-[10px] px-1.5 py-0.2 bg-[#F3ECE0] rounded-sm font-medium">
+                            {p === 'morning' ? 'เช้า' : p === 'afternoon' ? 'บ่าย' : p === 'night' ? 'ดึก' : 'อื่นๆ/Off'}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 text-stone-600">
+                      {st.code === 'OFFF' || isAllPos ? (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded-md border border-stone-200">
+                          ทุกตำแหน่ง
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {allowed.map((pos) => {
+                            const cfg = STANDARD_POSITIONS[pos];
+                            return (
+                              <span
+                                key={pos}
+                                className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md border ${cfg.badgeClass}`}
+                              >
+                                {pos}
+                              </span>
+                            );
+                          })}
+                        </div>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-stone-600">{st.timeRange}</td>
+                    <td className="py-2.5 px-3 text-right font-semibold text-stone-800">
+                      {st.rate > 0 ? `${st.rate.toLocaleString()} ฿` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      {st.isOt ? (
+                        <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full font-medium border border-rose-200">
+                          OT นอกเวลา
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-600 rounded-full">
+                          ในเวลา/ปกติ
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => handleStartEdit(st)}
+                          className="p-1.5 text-stone-600 hover:text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+                          title="แก้ไข"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {st.code !== 'OFFF' && (
+                          <button
+                            onClick={() => handleDelete(st.id, st.code)}
+                            className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="ลบ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

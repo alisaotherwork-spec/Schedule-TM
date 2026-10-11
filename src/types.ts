@@ -1,5 +1,7 @@
 export type StaffCategory = 'technologist' | 'assistant' | 'part_time';
 
+export type PositionAbbr = 'MT' | 'AMT' | 'Office' | 'Service';
+
 export type RoomId = 'lab' | 'donor';
 
 export interface Staff {
@@ -8,12 +10,13 @@ export interface Staff {
   englishName: string; // Used for login e.g. "Alisa", "Krit", "Supaporn"
   category: StaffCategory;
   position: string;
+  positionAbbr?: PositionAbbr; // MT, AMT, Office, Service
   room: RoomId | 'both';
   order: number;
   isActive: boolean;
   phone?: string;
   role?: 'super_admin' | 'sub_admin' | 'staff'; // Sub-admin assignment
-  password?: string; // Sub-admin hashed or stored password (default: '1234')
+  password?: string; // Sub-admin password
   mustChangePassword?: boolean; // True when created or reset, requires change on next login
 }
 
@@ -23,7 +26,9 @@ export interface ShiftType {
   id: string;
   code: string; // 1-4 characters e.g. "M", "E1", "MORN", "EVN1", "OFFF"
   name: string; // e.g. "เวรเช้า", "เวรบ่าย", "เวรดึก", "วันหยุด"
-  period: ShiftPeriod;
+  period?: ShiftPeriod; // for backwards compatibility
+  periods?: ShiftPeriod[]; // Multiple selection of periods! e.g. ['morning', 'afternoon']
+  allowedPositions?: PositionAbbr[]; // e.g. ['MT'], ['AMT', 'Office', 'Service']
   timeRange: string; // e.g. "08:30 - 16:30", "16:30 - 00:30", "00:30 - 08:30"
   rate: number; // e.g. 750 (บาท)
   isOt: boolean;
