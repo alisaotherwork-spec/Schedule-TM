@@ -7,7 +7,7 @@ import {
 } from '../utils/dateUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
 import { Download, Printer, DollarSign, UserCheck, CheckCircle, Calculator, FileCheck } from 'lucide-react';
-import { CuteAlien, CuteAstronaut, PaperStar } from './CuteSpaceDecorations';
+import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip } from './CuteSpaceDecorations';
 
 interface OtClaimViewProps {
   yearMonth: string;
@@ -109,6 +109,11 @@ export const OtClaimView: React.FC<OtClaimViewProps> = ({
           </div>
         </div>
 
+        {/* Paper-cut Space Decorative Bar in Empty Center Space */}
+        <div className="hidden xl:flex items-center justify-center flex-1 mx-2 pointer-events-none select-none">
+          <CuteSpaceBarStrip variant="minimal" />
+        </div>
+
         {/* Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Staff Selector (Disabled or limited if general user) */}
@@ -163,6 +168,11 @@ export const OtClaimView: React.FC<OtClaimViewProps> = ({
                 {selectedStaff.position} • ประจำเดือน {formatYearMonthThai(yearMonth)}
               </div>
             </div>
+          </div>
+
+          {/* Cute Paper-cut Space Ribbon in Overview Card */}
+          <div className="hidden lg:flex items-center justify-center flex-1 mx-4 pointer-events-none select-none">
+            <CuteSpaceBarStrip variant="compact" />
           </div>
 
           <div className="flex items-center gap-6">

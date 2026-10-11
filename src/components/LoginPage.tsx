@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Staff, UserSession } from '../types';
-import { CuteAlien, CuteAstronaut } from './CuteSpaceDecorations';
+import { CuteAlien, CuteAstronaut, SolarSystemBackground, CuteSpaceBarStrip } from './CuteSpaceDecorations';
 import { Lock, User, ShieldCheck, ArrowRight, AlertCircle, Eye, EyeOff, Shield } from 'lucide-react';
 import { ForceChangePasswordModal } from './ForceChangePasswordModal';
 
@@ -142,9 +142,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] flex flex-col justify-between p-4 sm:p-6 text-stone-800">
+    <div className="min-h-screen bg-[#FDFBF7] flex flex-col justify-between p-4 sm:p-6 text-stone-800 relative">
+      {/* Paper-cut Solar System Background */}
+      <SolarSystemBackground />
+
       {/* Top hospital header strip */}
-      <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-4 border-b border-[#E7DFD5]">
+      <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-4 border-b border-[#E7DFD5] relative z-10">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 p-1.5 bg-white rounded-2xl border-2 border-[#E3D7C5] shadow-[2px_2px_0px_rgba(70,60,50,0.1)] shrink-0">
             <CuteAstronaut size={28} />
@@ -158,6 +161,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (TUH)
             </p>
           </div>
+        </div>
+
+        {/* Paper-cut Space Celestial Strip */}
+        <div className="hidden sm:inline-flex pointer-events-none select-none">
+          <CuteSpaceBarStrip variant="compact" />
         </div>
 
         <span className="text-[10px] sm:text-xs px-2.5 py-1 bg-amber-100 text-amber-900 font-bold rounded-lg border border-amber-300">

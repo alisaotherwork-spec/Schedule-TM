@@ -195,6 +195,149 @@ export const PaperRocket: React.FC<{ className?: string; size?: number }> = ({ c
   </svg>
 );
 
+// Paper Spaceship (ยานอวกาศสไตล์ตัดกระดาษน่ารัก)
+export const PaperSpaceship: React.FC<{ className?: string; size?: number }> = ({
+  className = '',
+  size = 48,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`filter drop-shadow-[2px_3px_0px_rgba(70,60,50,0.18)] ${className}`}
+  >
+    {/* Paper Exhaust Flame */}
+    <path d="M14 32L6 36L10 32L6 28Z" fill="#F59E0B" stroke="#D97706" strokeWidth="1" />
+    <path d="M10 32L4 34L7 32L4 30Z" fill="#EF4444" />
+
+    {/* Space Wings (Paper cutout) */}
+    <path
+      d="M22 16L34 26L18 30Z"
+      fill="#38BDF8"
+      stroke="#0284C7"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M22 48L34 38L18 34Z"
+      fill="#38BDF8"
+      stroke="#0284C7"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    />
+
+    {/* Main Spaceship Hull */}
+    <path
+      d="M14 26C14 26 22 24 38 24C48 24 58 29 60 32C58 35 48 40 38 40C22 40 14 38 14 38L16 32Z"
+      fill="#FFFDF9"
+      stroke="#94A3B8"
+      strokeWidth="2"
+    />
+
+    {/* Stitched Seams on Hull */}
+    <path
+      d="M24 27C30 27 38 27 46 29"
+      stroke="#CBD5E1"
+      strokeWidth="1.2"
+      strokeDasharray="3 2"
+    />
+    <path
+      d="M24 37C30 37 38 37 46 35"
+      stroke="#CBD5E1"
+      strokeWidth="1.2"
+      strokeDasharray="3 2"
+    />
+
+    {/* Glass Cockpit Dome */}
+    <ellipse cx="44" cy="32" rx="7" ry="4.5" fill="#0EA5E9" stroke="#0284C7" strokeWidth="1.5" />
+    <path d="M42 30C45 29 48 30 49 31" stroke="#E0F2FE" strokeWidth="1.5" strokeLinecap="round" />
+
+    {/* Accent Stripes */}
+    <rect x="22" y="30" width="3" height="4" rx="1" fill="#EF4444" />
+    <rect x="27" y="30" width="3" height="4" rx="1" fill="#F59E0B" />
+    <rect x="32" y="30" width="3" height="4" rx="1" fill="#10B981" />
+  </svg>
+);
+
+// Paper Satellite (ดาวเทียมสำรวจอวกาศกระดาษตัด)
+export const PaperSatellite: React.FC<{ className?: string; size?: number }> = ({
+  className = '',
+  size = 44,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 60 60"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`filter drop-shadow-[2px_2px_0px_rgba(70,60,50,0.16)] ${className}`}
+  >
+    {/* Left Solar Panel */}
+    <rect x="4" y="24" width="16" height="12" rx="2" fill="#38BDF8" stroke="#0284C7" strokeWidth="1.5" />
+    <path d="M12 24V36" stroke="#0284C7" strokeWidth="1" strokeDasharray="2 1" />
+    <path d="M4 30H20" stroke="#0284C7" strokeWidth="1" />
+
+    {/* Right Solar Panel */}
+    <rect x="40" y="24" width="16" height="12" rx="2" fill="#38BDF8" stroke="#0284C7" strokeWidth="1.5" />
+    <path d="M48 24V36" stroke="#0284C7" strokeWidth="1" strokeDasharray="2 1" />
+    <path d="M40 30H56" stroke="#0284C7" strokeWidth="1" />
+
+    {/* Connecting Rods */}
+    <rect x="20" y="28.5" width="4" height="3" fill="#94A3B8" />
+    <rect x="36" y="28.5" width="4" height="3" fill="#94A3B8" />
+
+    {/* Main Core Cube */}
+    <rect x="24" y="22" width="12" height="16" rx="3" fill="#F8FAFC" stroke="#64748B" strokeWidth="2" />
+    <circle cx="30" cy="27" r="2.5" fill="#F59E0B" stroke="#D97706" strokeWidth="1" />
+    <circle cx="30" cy="33" r="1.5" fill="#10B981" />
+
+    {/* Dish Antenna */}
+    <path d="M30 22V15" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M24 13C27 16 33 16 36 13" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="30" cy="11" r="1.5" fill="#EF4444" />
+  </svg>
+);
+
+// Paper UFO (จานบินอวกาศกระดาษตัดน่ารัก)
+export const PaperUFO: React.FC<{ className?: string; size?: number }> = ({
+  className = '',
+  size = 46,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 60 60"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`filter drop-shadow-[2px_3px_0px_rgba(70,60,50,0.18)] ${className}`}
+  >
+    {/* Soft Light Beam from underneath */}
+    <polygon points="24,38 36,38 46,54 14,54" fill="#FEF08A" opacity="0.35" />
+
+    {/* Glass Bubble Cockpit */}
+    <ellipse cx="30" cy="24" rx="13" ry="11" fill="#BAE6FD" stroke="#0284C7" strokeWidth="1.8" />
+    <path d="M25 18C28 16 33 16 36 18" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+
+    {/* Tiny Happy Pilot inside UFO */}
+    <circle cx="30" cy="24" r="3.5" fill="#4ADE80" />
+    <circle cx="28.5" cy="23.5" r="0.8" fill="#1E293B" />
+    <circle cx="31.5" cy="23.5" r="0.8" fill="#1E293B" />
+
+    {/* Saucer Metal Ring Body */}
+    <ellipse cx="30" cy="32" rx="25" ry="7.5" fill="#FFFDF9" stroke="#94A3B8" strokeWidth="2" />
+    <ellipse cx="30" cy="33.5" rx="19" ry="4.5" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1" strokeDasharray="3 2" />
+
+    {/* Colorful Signal Lights */}
+    <circle cx="14" cy="33" r="2" fill="#F87171" stroke="#DC2626" strokeWidth="0.8" />
+    <circle cx="22" cy="34.5" r="2" fill="#FBBF24" stroke="#D97706" strokeWidth="0.8" />
+    <circle cx="30" cy="35" r="2" fill="#4ADE80" stroke="#16A34A" strokeWidth="0.8" />
+    <circle cx="38" cy="34.5" r="2" fill="#38BDF8" stroke="#0284C7" strokeWidth="0.8" />
+    <circle cx="46" cy="33" r="2" fill="#C084FC" stroke="#9333EA" strokeWidth="0.8" />
+  </svg>
+);
+
 // Paper-cut Sun (ดวงอาทิตย์กระดาษตัด)
 export const PaperSun: React.FC<{ className?: string; size?: number }> = ({ className = '', size = 56 }) => (
   <svg
@@ -445,6 +588,21 @@ export const SolarSystemBackground: React.FC = () => {
         <PaperRocket size={38} className="transform rotate-45" />
       </div>
 
+      {/* Cruising Cute Spaceship near Upper Right */}
+      <div className="absolute top-28 right-44 opacity-60 hover:opacity-90 transition-opacity transform -rotate-12">
+        <PaperSpaceship size={42} />
+      </div>
+
+      {/* Orbiting Satellite near Bottom Center-Left */}
+      <div className="absolute bottom-28 left-48 opacity-55 hover:opacity-85 transition-opacity transform rotate-12">
+        <PaperSatellite size={38} />
+      </div>
+
+      {/* Cute Hovering UFO near Mid-Left */}
+      <div className="absolute top-2/3 -left-2 opacity-65 hover:opacity-95 transition-opacity transform -rotate-6">
+        <PaperUFO size={46} />
+      </div>
+
       {/* Shooting Star Across Top Center */}
       <div className="absolute top-2 left-1/3 opacity-50">
         <PaperShootingStar size={44} />
@@ -472,3 +630,67 @@ export const SolarSystemBackground: React.FC = () => {
     </div>
   );
 };
+
+// Cute Space Bar Strip: สำหรับจัดวางในแถบว่างต่างๆ เช่น Navbar, Header Toolbar, Status Banner
+export const CuteSpaceBarStrip: React.FC<{
+  className?: string;
+  variant?: 'minimal' | 'full' | 'compact';
+}> = ({ className = '', variant = 'full' }) => {
+  if (variant === 'compact') {
+    return (
+      <div
+        className={`inline-flex items-center gap-1.5 pointer-events-none select-none print:hidden ${className}`}
+      >
+        <PaperSpaceship size={24} className="transform -rotate-12 hover:rotate-0 transition-transform" />
+        <PaperStar size={12} color="#FBBF24" />
+        <PaperSaturn size={20} className="transform rotate-12" />
+      </div>
+    );
+  }
+
+  if (variant === 'minimal') {
+    return (
+      <div
+        className={`inline-flex items-center gap-2 pointer-events-none select-none print:hidden ${className}`}
+      >
+        <PaperStar size={13} color="#FACC15" />
+        <PaperSpaceship size={28} className="transform -rotate-6" />
+        <PaperStar size={11} color="#FDE047" />
+        <PaperEarth size={22} />
+        <PaperStar size={14} color="#FBBF24" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 sm:gap-3 px-3 py-1 bg-white/70 backdrop-blur-xs rounded-full border border-[#E7DFD5]/90 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] pointer-events-none select-none print:hidden ${className}`}
+    >
+      <PaperStar size={13} color="#FDE047" />
+      <PaperSpaceship size={26} className="transform -rotate-12" />
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+      <PaperSaturn size={24} className="transform rotate-12" />
+      <span className="w-1.5 h-1.5 rounded-full bg-sky-300" />
+      <PaperUFO size={24} className="transform -rotate-6" />
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+      <PaperSatellite size={22} />
+      <PaperStar size={14} color="#FBBF24" />
+    </div>
+  );
+};
+
+// Cute Mini Space Cluster: ดักวางมุมขวาหรือข้างแถบหัวข้อ
+export const CuteMiniSpaceCluster: React.FC<{ className?: string }> = ({ className = '' }) => {
+  return (
+    <div
+      className={`flex items-center gap-1.5 px-2.5 py-1 bg-[#FFFDF9]/90 rounded-xl border border-[#EADFCF] shadow-[1px_2px_0px_rgba(70,60,50,0.08)] pointer-events-none select-none print:hidden ${className}`}
+    >
+      <PaperSpaceship size={24} className="transform -rotate-12" />
+      <PaperStar size={12} color="#FACC15" />
+      <PaperSaturn size={22} className="transform rotate-6" />
+      <PaperStar size={10} color="#FDE047" />
+      <PaperUFO size={20} />
+    </div>
+  );
+};
+

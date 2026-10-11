@@ -22,7 +22,16 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import { CuteAlien, CuteAstronaut, PaperStar, PaperPlanet, PaperRocket } from './CuteSpaceDecorations';
+import {
+  CuteAlien,
+  CuteAstronaut,
+  PaperStar,
+  PaperPlanet,
+  PaperRocket,
+  CuteSpaceBarStrip,
+  PaperSpaceship,
+  PaperSaturn,
+} from './CuteSpaceDecorations';
 
 export type ActiveTab = 'lab' | 'donor' | 'daily_summary' | 'ot_claim';
 
@@ -129,6 +138,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (TUH)
             </p>
           </div>
+        </div>
+
+        {/* Paper-cut Space Celestial & Spaceship Banner in Center of Bar */}
+        <div className="hidden xl:flex items-center mx-4 flex-1 justify-center pointer-events-none select-none">
+          <CuteSpaceBarStrip variant="full" />
         </div>
 
         {/* Date Month/Year Navigator (ดูเวรล่วงหน้าและย้อนหลังได้) */}
@@ -315,10 +329,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* Quick Month Name Indicator */}
-        <div className="hidden lg:flex items-center gap-2 text-xs font-medium text-stone-500">
-          <Calendar className="w-3.5 h-3.5 text-stone-400" />
-          <span>เดือนที่เลือก: {formatYearMonthThai(yearMonth)}</span>
+        {/* Quick Month Name Indicator with Cute Space Decor */}
+        <div className="hidden lg:flex items-center gap-3 text-xs font-medium text-stone-500">
+          <CuteSpaceBarStrip variant="compact" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/80 rounded-xl border border-[#DACFBF] shadow-[1px_2px_0px_rgba(70,60,50,0.06)]">
+            <Calendar className="w-3.5 h-3.5 text-stone-400" />
+            <span>เดือนที่เลือก: {formatYearMonthThai(yearMonth)}</span>
+          </div>
         </div>
       </nav>
 

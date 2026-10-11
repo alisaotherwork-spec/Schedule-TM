@@ -9,7 +9,7 @@ import {
 } from '../utils/dateUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
 import { Download, Printer, Filter, Calendar, FileText, CheckCircle2 } from 'lucide-react';
-import { CuteAlien, CuteAstronaut, PaperStar } from './CuteSpaceDecorations';
+import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip } from './CuteSpaceDecorations';
 
 interface DailySummaryViewProps {
   yearMonth: string;
@@ -153,6 +153,11 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
               6 คอลัมน์มาตรฐาน • ช่องไม่มีเวรสีเทาอ่อน ช่องมีเวรสีขาว • แยกดาวน์โหลด PDF A4 แนวตั้ง
             </p>
           </div>
+        </div>
+
+        {/* Paper-cut Space Decorative Bar in Empty Center Space */}
+        <div className="hidden xl:flex items-center justify-center flex-1 mx-2 pointer-events-none select-none">
+          <CuteSpaceBarStrip variant="minimal" />
         </div>
 
         {/* Filter and Download Controls */}

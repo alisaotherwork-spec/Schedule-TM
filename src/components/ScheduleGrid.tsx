@@ -4,7 +4,7 @@ import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMon
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
 import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck } from 'lucide-react';
-import { CuteAlien, CuteAstronaut, PaperStar } from './CuteSpaceDecorations';
+import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
   roomId: RoomId;
@@ -249,6 +249,11 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           </div>
         </div>
 
+        {/* Paper-cut Space Decorative Bar in Empty Center Space */}
+        <div className="hidden lg:flex items-center justify-center flex-1 mx-2 pointer-events-none select-none">
+          <CuteSpaceBarStrip variant="minimal" />
+        </div>
+
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           {(currentUser?.isAdmin || currentUser?.isSubAdmin) && (
@@ -333,23 +338,26 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
             </span>
           )}
         </div>
-        <div className="hidden sm:flex items-center gap-3 text-[11px] text-stone-500">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 bg-amber-50 border border-amber-200 inline-block rounded-xs" />
-            วันเสาร์-อาทิตย์
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 bg-emerald-100 border border-emerald-300 inline-block rounded-xs" />
-            เวรเช้า
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 bg-amber-100 border border-amber-300 inline-block rounded-xs" />
-            เวรบ่าย
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 bg-indigo-100 border border-indigo-300 inline-block rounded-xs" />
-            เวรดึก
-          </span>
+        <div className="hidden md:flex items-center gap-3">
+          <CuteSpaceBarStrip variant="compact" />
+          <div className="hidden lg:flex items-center gap-3 text-[11px] text-stone-500">
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-amber-50 border border-amber-200 inline-block rounded-xs" />
+              วันเสาร์-อาทิตย์
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-emerald-100 border border-emerald-300 inline-block rounded-xs" />
+              เวรเช้า
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-amber-100 border border-amber-300 inline-block rounded-xs" />
+              เวรบ่าย
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-indigo-100 border border-indigo-300 inline-block rounded-xs" />
+              เวรดึก
+            </span>
+          </div>
         </div>
       </div>
 
