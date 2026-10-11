@@ -43,6 +43,7 @@ interface NavbarProps {
   currentUser: UserSession | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onOpenShiftModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenLogin,
   onLogout,
+  onOpenShiftModal,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -327,6 +329,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <DollarSign className="w-4 h-4" />
             <span>ใบเบิกเงินค่าตอบแทน OT (4 คอลัมน์)</span>
           </button>
+
+          {/* Quick Configure Shift Rates Button */}
+          {onOpenShiftModal && (
+            <button
+              onClick={onOpenShiftModal}
+              className="py-2 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 shadow-xs"
+              title="กำหนดและแก้ไขอัตราค่าตอบแทนเวร"
+            >
+              <DollarSign className="w-3.5 h-3.5 text-amber-700" />
+              <span>กำหนดค่าเวร</span>
+            </button>
+          )}
         </div>
 
         {/* Quick Month Name Indicator with Cute Space Decor */}

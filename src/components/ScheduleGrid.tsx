@@ -3,7 +3,7 @@ import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } f
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -274,16 +274,17 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               >
                 <span>จัดการเจ้าหน้าที่</span>
               </button>
-
-              <button
-                onClick={onOpenShiftModal}
-                className="py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 font-medium text-xs rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
-                title="กำหนดค่าเวร"
-              >
-                <span>กำหนดค่าเวร</span>
-              </button>
             </>
           )}
+
+          <button
+            onClick={onOpenShiftModal}
+            className="py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 font-medium text-xs rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+            title="กำหนดและแก้ไขอัตราค่าเวร"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+            <span>กำหนดค่าเวร</span>
+          </button>
 
           {/* Download PDF Button */}
           <button

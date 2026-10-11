@@ -417,6 +417,7 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
+        onOpenShiftModal={() => setIsShiftModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -477,6 +478,7 @@ export default function App() {
             labSchedule={labSchedule}
             donorSchedule={donorSchedule}
             currentUser={currentUser}
+            onOpenShiftModal={() => setIsShiftModalOpen(true)}
           />
         )}
       </main>

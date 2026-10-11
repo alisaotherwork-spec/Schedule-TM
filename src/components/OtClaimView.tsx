@@ -16,6 +16,7 @@ interface OtClaimViewProps {
   labSchedule: MonthSchedule;
   donorSchedule: MonthSchedule;
   currentUser: UserSession | null;
+  onOpenShiftModal?: () => void;
 }
 
 export const OtClaimView: React.FC<OtClaimViewProps> = ({
@@ -25,6 +26,7 @@ export const OtClaimView: React.FC<OtClaimViewProps> = ({
   labSchedule,
   donorSchedule,
   currentUser,
+  onOpenShiftModal,
 }) => {
   // If general user is logged in, default to their staffId
   const initialStaffId =
@@ -57,8 +59,8 @@ export const OtClaimView: React.FC<OtClaimViewProps> = ({
       checkCodes.forEach(({ code, room }) => {
         if (!code || code === 'OFFF') return;
         const st = shiftTypes.find((s) => s.code === code);
-        // An OT shift is either flagged as isOt, or a night/afternoon shift
-        if (st && st.isOt) {
+        // An OT shift is flagged as isOt, or has a configured rate > 0
+        if (st && (st.isOt || st.rate > 0)) {
           otRows.push({
             staffName: selectedStaff.thaiName,
             workDate: formatThaiDate(day, yearMonth),
@@ -139,6 +141,18 @@ export const OtClaimView: React.FC<OtClaimViewProps> = ({
               </select>
             )}
           </div>
+
+          {/* Configure Shift Rates Button */}
+          {onOpenShiftModal && (
+            <button
+              onClick={onOpenShiftModal}
+              className="py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 font-medium text-xs rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+              title="กำหนดและแก้ไขอัตราค่าตอบแทนเวรแต่ละประเภท"
+            >
+              <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+              <span>กำหนดค่าเวร</span>
+            </button>
+          )}
 
           {/* Download PDF Button */}
           <button
