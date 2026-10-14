@@ -498,7 +498,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 )}
               </div>
 
-              <div className="mt-4 pt-3 border-t border-[#EFE7DC] flex justify-between gap-2">
+              <div className="mt-4 pt-3 border-t border-[#EFE7DC] flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => handleSelectShiftCode('')}
@@ -506,13 +506,27 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 >
                   ล้างเวรออก (Clear)
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCell(null)}
-                  className="px-4 py-1.5 bg-[#E8DEC8] hover:bg-[#DCD1BA] text-stone-800 rounded-lg text-xs font-medium cursor-pointer"
-                >
-                  ปิด
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCell(null);
+                      onOpenShiftModal();
+                    }}
+                    className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
+                    title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
+                  >
+                    <DollarSign className="w-3 h-3 text-amber-600" />
+                    <span>กำหนดค่าเวร</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCell(null)}
+                    className="px-4 py-1.5 bg-[#E8DEC8] hover:bg-[#DCD1BA] text-stone-800 rounded-lg text-xs font-medium cursor-pointer"
+                  >
+                    ปิด
+                  </button>
+                </div>
               </div>
             </div>
           </div>

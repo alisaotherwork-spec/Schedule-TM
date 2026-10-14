@@ -31,7 +31,7 @@ const PERIOD_OPTIONS: { id: ShiftPeriod; label: string; bg: string }[] = [
   { id: 'other', label: 'อื่นๆ / วันหยุด (Off/Other)', bg: 'bg-stone-50 text-stone-700 border-stone-200' },
 ];
 
-export const COMMON_RATE_PRESETS = [0, 300, 450, 500, 600, 650, 700, 750, 800, 850, 1000, 1200];
+export const COMMON_RATE_PRESETS = [0, 300, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 1000, 1200, 1500];
 
 export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   isOpen,
@@ -47,6 +47,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [allowedPositions, setAllowedPositions] = useState<PositionAbbr[]>(ALL_POSITION_ABBRS);
   const [timeRange, setTimeRange] = useState('');
   const [rate, setRate] = useState<number>(600);
+  const [rateInput, setRateInput] = useState<string>('600');
   const [isOt, setIsOt] = useState(false);
   const [color, setColor] = useState(COLOR_OPTIONS[0].value);
   const [error, setError] = useState('');
@@ -54,7 +55,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
   // Quick Inline Rate Editor in Table
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [inlineRateInput, setInlineRateInput] = useState<number>(0);
+  const [inlineRateInput, setInlineRateInput] = useState<string>('0');
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'MT' | 'AMT' | 'Office' | 'Service' | 'paid' | 'free'>('all');
 
@@ -79,6 +80,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     setAllowedPositions([...ALL_POSITION_ABBRS]);
     setTimeRange('08:30 - 16:30 น.');
     setRate(600);
+    setRateInput('600');
     setIsOt(false);
     setColor(COLOR_OPTIONS[0].value);
     setError('');
@@ -104,6 +106,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
     setTimeRange(st.timeRange);
     setRate(st.rate);
+    setRateInput(String(st.rate || 0));
     setIsOt(st.isOt);
     setColor(st.color || COLOR_OPTIONS[0].value);
     setError('');
@@ -139,6 +142,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const handleAdjustRate = (delta: number) => {
     setRate((prev) => {
       const nextVal = Math.max(0, (Number(prev) || 0) + delta);
+      setRateInput(String(nextVal));
       if (nextVal > 0) setIsOt(true);
       return nextVal;
     });
@@ -146,6 +150,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
   const handleSelectPresetRate = (val: number) => {
     setRate(val);
+    setRateInput(String(val));
     if (val > 0) {
       setIsOt(true);
     }
@@ -153,7 +158,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
   const handleStartInlineEdit = (st: ShiftType) => {
     setInlineEditingId(st.id);
-    setInlineRateInput(st.rate || 0);
+    setInlineRateInput(String(st.rate || 0));
   };
 
   const handleCancelInlineEdit = () => {
@@ -161,7 +166,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   };
 
   const handleSaveInlineRate = async (st: ShiftType) => {
-    const finalRate = Math.max(0, Number(inlineRateInput) || 0);
+    const finalRate = Math.max(0, parseFloat(inlineRateInput) || 0);
     try {
       const updated: ShiftType = {
         ...st,
@@ -365,13 +370,19 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                     type="number"
                     min="0"
                     step="any"
-                    value={rate}
+                    value={rateInput}
                     onChange={(e) => {
-                      const val = Math.max(0, Number(e.target.value) || 0);
-                      setRate(val);
-                      if (val > 0) setIsOt(true);
+                      const raw = e.target.value;
+                      setRateInput(raw);
+                      const num = parseFloat(raw);
+                      if (!isNaN(num) && num >= 0) {
+                        setRate(num);
+                        if (num > 0) setIsOt(true);
+                      } else if (raw === '') {
+                        setRate(0);
+                      }
                     }}
-                    placeholder="ระบุจำนวนเงินค่าเวร เช่น 600, 750"
+                    placeholder="ระบุจำนวนเงินค่าเวร เช่น 600, 750 (กำหนดได้ตามต้องการ)"
                     className="flex-1 px-3 py-1.5 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500 font-mono font-bold text-stone-800 text-sm text-center"
                     required
                   />
@@ -715,7 +726,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                                 min="0"
                                 step="any"
                                 value={inlineRateInput}
-                                onChange={(e) => setInlineRateInput(Math.max(0, Number(e.target.value) || 0))}
+                                onChange={(e) => setInlineRateInput(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') handleSaveInlineRate(st);
                                   if (e.key === 'Escape') handleCancelInlineEdit();

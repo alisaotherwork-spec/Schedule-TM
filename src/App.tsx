@@ -479,6 +479,7 @@ export default function App() {
             donorSchedule={donorSchedule}
             currentUser={currentUser}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
+            onSaveShiftType={handleSaveShiftType}
           />
         )}
       </main>

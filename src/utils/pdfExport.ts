@@ -18,7 +18,60 @@ export async function exportElementToPdf({
     return;
   }
 
-  // Use html2canvas-pro with scale 2 for crisp resolution and oklch color support
+  // Check if container contains explicit individual page elements (.pdf-page)
+  const pageElements = Array.from(element.querySelectorAll<HTMLElement>('.pdf-page'));
+
+  if (pageElements.length > 0) {
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pdfWidth = orientation === 'landscape' ? 297 : 210;
+    const pdfHeight = orientation === 'landscape' ? 210 : 297;
+    const margin = 6;
+    const printWidth = pdfWidth - margin * 2;
+    const printHeight = pdfHeight - margin * 2;
+
+    for (let i = 0; i < pageElements.length; i++) {
+      const pageEl = pageElements[i];
+      const canvas = await html2canvas(pageEl, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#FFFFFF',
+        windowWidth: orientation === 'landscape' ? 1400 : 900,
+      });
+
+      if (!canvas.width || !canvas.height) continue;
+
+      const imgData = canvas.toDataURL('image/png');
+      if (i > 0) {
+        pdf.addPage();
+      }
+
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      let targetWidth = printWidth;
+      let targetHeight = (imgHeight * printWidth) / imgWidth;
+
+      if (targetHeight > printHeight) {
+        targetHeight = printHeight;
+        targetWidth = (targetHeight * imgWidth) / imgHeight;
+      }
+
+      const posX = margin + (printWidth - targetWidth) / 2;
+      const posY = margin + (printHeight - targetHeight) / 2;
+
+      pdf.addImage(imgData, 'PNG', posX, posY, targetWidth, targetHeight, undefined, 'FAST');
+    }
+
+    pdf.save(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+    return;
+  }
+
+  // Single page or legacy slicing fallback
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
@@ -67,8 +120,7 @@ export async function exportElementToPdf({
 
     pdf.addImage(imgData, 'PNG', posX, posY, targetWidth, targetHeight, undefined, 'FAST');
   } else {
-    // For Multi-Page Portrait (e.g. Daily Duty Summary across many days):
-    // Standard sliced pagination across A4 pages
+    // For Multi-Page Portrait: Standard sliced pagination across A4 pages
     let heightLeft = scaledHeight;
     let position = margin;
     let page = 1;

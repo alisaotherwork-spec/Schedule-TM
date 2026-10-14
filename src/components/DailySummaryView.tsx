@@ -6,9 +6,11 @@ import {
   formatShortDateCol,
   formatThaiDate,
   isWeekend,
+  getDayOfWeek,
+  THAI_DAYS_SHORT,
 } from '../utils/dateUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Filter, Calendar, FileText, CheckCircle2 } from 'lucide-react';
+import { Download, Printer, Filter, Calendar, FileText, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip } from './CuteSpaceDecorations';
 
 interface DailySummaryViewProps {
@@ -27,7 +29,8 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
   donorSchedule,
 }) => {
   const [selectedRoom, setSelectedRoom] = useState<RoomId | 'all'>('lab');
-  const [selectedDay, setSelectedDay] = useState<number | 'all'>(1);
+  const [selectedDay, setSelectedDay] = useState<number | 'all_shifts' | 'all'>('all_shifts');
+  const [onlyOnDuty, setOnlyOnDuty] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState(false);
 
   const daysInMonth = getDaysInMonth(yearMonth);
@@ -53,64 +56,235 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
     return periodsArr.filter((p): p is 'morning' | 'afternoon' | 'night' => p !== 'other');
   };
 
-  // Compile rows based on selected filters
-  const rows: Array<{
-    dateStr: string;
-    day: number;
-    staffName: string;
-    position: string;
-    category: string;
-    morningShift: string;
-    afternoonShift: string;
-    nightShift: string;
-    roomName: string;
-  }> = [];
+  // Calculate which days have actual duties assigned in the selected room(s)
+  const daysWithShiftsMap = React.useMemo(() => {
+    const map = new Map<number, { count: number; staffNames: string[] }>();
 
-  const daysToInclude = selectedDay === 'all' ? daysArray : [selectedDay];
+    daysArray.forEach((day) => {
+      let shiftCount = 0;
+      const names: string[] = [];
 
-  daysToInclude.forEach((day) => {
-    const dateStr = formatShortDateCol(day, yearMonth);
+      staffList.forEach((staff) => {
+        if (!staff.isActive) return;
 
-    // Active staff list
-    staffList.forEach((staff) => {
-      if (!staff.isActive) return;
+        const labCode = labSchedule?.assignments?.[staff.id]?.[day];
+        const donorCode = donorSchedule?.assignments?.[staff.id]?.[day];
 
-      // Check Lab shifts
-      const labCode = labSchedule?.assignments?.[staff.id]?.[day];
-      // Check Donor shifts
-      const donorCode = donorSchedule?.assignments?.[staff.id]?.[day];
+        const labPeriods = getPeriodsForCode(labCode);
+        const donorPeriods = getPeriodsForCode(donorCode);
 
-      const roomsToProcess: Array<{ roomId: RoomId; code: string | undefined }> = [];
-      if (selectedRoom === 'all') {
-        if (staff.room === 'lab' || staff.room === 'both') roomsToProcess.push({ roomId: 'lab', code: labCode });
-        if (staff.room === 'donor' || staff.room === 'both') roomsToProcess.push({ roomId: 'donor', code: donorCode });
-      } else if (selectedRoom === 'lab' && (staff.room === 'lab' || staff.room === 'both')) {
-        roomsToProcess.push({ roomId: 'lab', code: labCode });
-      } else if (selectedRoom === 'donor' && (staff.room === 'donor' || staff.room === 'both')) {
-        roomsToProcess.push({ roomId: 'donor', code: donorCode });
+        let hasLabDuty = false;
+        let hasDonorDuty = false;
+
+        if (selectedRoom === 'all') {
+          hasLabDuty = (staff.room === 'lab' || staff.room === 'both') && labPeriods.length > 0;
+          hasDonorDuty = (staff.room === 'donor' || staff.room === 'both') && donorPeriods.length > 0;
+        } else if (selectedRoom === 'lab') {
+          hasLabDuty = (staff.room === 'lab' || staff.room === 'both') && labPeriods.length > 0;
+        } else if (selectedRoom === 'donor') {
+          hasDonorDuty = (staff.room === 'donor' || staff.room === 'both') && donorPeriods.length > 0;
+        }
+
+        if (hasLabDuty || hasDonorDuty) {
+          shiftCount += (hasLabDuty ? 1 : 0) + (hasDonorDuty ? 1 : 0);
+          names.push(staff.thaiName);
+        }
+      });
+
+      if (shiftCount > 0) {
+        map.set(day, { count: shiftCount, staffNames: names });
       }
+    });
 
-      roomsToProcess.forEach(({ roomId, code }) => {
-        const periods = getPeriodsForCode(code);
-        const morningShift = periods.includes('morning') ? code || '' : '';
-        const afternoonShift = periods.includes('afternoon') ? code || '' : '';
-        const nightShift = periods.includes('night') ? code || '' : '';
+    return map;
+  }, [daysArray, staffList, labSchedule, donorSchedule, selectedRoom, shiftTypes]);
 
-        // Only include if on duty or if showing all staff for this date
-        rows.push({
-          dateStr,
-          day,
-          staffName: staff.thaiName,
-          position: staff.position,
-          category: staff.category,
-          morningShift,
-          afternoonShift,
-          nightShift,
-          roomName: roomId === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค',
+  const activeDaysList = React.useMemo(() => {
+    return Array.from(daysWithShiftsMap.keys()).sort((a, b) => a - b);
+  }, [daysWithShiftsMap]);
+
+  // Determine which days to extract for interactive screen display
+  const daysToInclude = React.useMemo(() => {
+    if (selectedDay === 'all_shifts') {
+      return activeDaysList.length > 0 ? activeDaysList : daysArray;
+    }
+    if (selectedDay === 'all') {
+      return daysArray;
+    }
+    return [selectedDay];
+  }, [selectedDay, activeDaysList, daysArray]);
+
+  // Helper row builder
+  const buildRowsForDays = (targetDays: number[], enforceOnlyDuty: boolean) => {
+    const result: Array<{
+      dateStr: string;
+      fullDateStr: string;
+      day: number;
+      dowShort: string;
+      staffName: string;
+      position: string;
+      category: string;
+      morningShift: string;
+      afternoonShift: string;
+      nightShift: string;
+      roomName: string;
+      hasDuty: boolean;
+      activeCodes: string[];
+    }> = [];
+
+    targetDays.forEach((day) => {
+      const dow = getDayOfWeek(yearMonth, day);
+      const dowShort = THAI_DAYS_SHORT[dow];
+      const shortDate = formatShortDateCol(day, yearMonth);
+      const dateStr = `${dowShort}. ${shortDate}`;
+      const fullDateStr = `${dowShort}. ${formatThaiDate(day, yearMonth)}`;
+
+      staffList.forEach((staff) => {
+        if (!staff.isActive) return;
+
+        const labCode = labSchedule?.assignments?.[staff.id]?.[day];
+        const donorCode = donorSchedule?.assignments?.[staff.id]?.[day];
+
+        const roomsToProcess: Array<{ roomId: RoomId; code: string | undefined }> = [];
+        if (selectedRoom === 'all') {
+          if (staff.room === 'lab' || staff.room === 'both') roomsToProcess.push({ roomId: 'lab', code: labCode });
+          if (staff.room === 'donor' || staff.room === 'both') roomsToProcess.push({ roomId: 'donor', code: donorCode });
+        } else if (selectedRoom === 'lab' && (staff.room === 'lab' || staff.room === 'both')) {
+          roomsToProcess.push({ roomId: 'lab', code: labCode });
+        } else if (selectedRoom === 'donor' && (staff.room === 'donor' || staff.room === 'both')) {
+          roomsToProcess.push({ roomId: 'donor', code: donorCode });
+        }
+
+        roomsToProcess.forEach(({ roomId, code }) => {
+          const periods = getPeriodsForCode(code);
+          const morningShift = periods.includes('morning') ? code || '' : '';
+          const afternoonShift = periods.includes('afternoon') ? code || '' : '';
+          const nightShift = periods.includes('night') ? code || '' : '';
+          const hasDuty = Boolean(morningShift || afternoonShift || nightShift);
+
+          if (enforceOnlyDuty && !hasDuty) {
+            return;
+          }
+
+          result.push({
+            dateStr,
+            fullDateStr,
+            day,
+            dowShort,
+            staffName: staff.thaiName,
+            position: staff.position,
+            category: staff.category,
+            morningShift,
+            afternoonShift,
+            nightShift,
+            roomName: roomId === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค',
+            hasDuty,
+            activeCodes: [morningShift, afternoonShift, nightShift].filter(Boolean),
+          });
         });
       });
     });
-  });
+
+    return result;
+  };
+
+  // Compile rows for interactive display table
+  const rows = React.useMemo(() => {
+    return buildRowsForDays(daysToInclude, onlyOnDuty);
+  }, [daysToInclude, onlyOnDuty, staffList, labSchedule, donorSchedule, selectedRoom, shiftTypes]);
+
+  // Compile rows strictly for DOWNLOAD (PDF and Excel/CSV):
+  // Requirement 4: ดึงเฉพาะวันที่มีเวรจริงใส่ในตารางที่ดาวน์โหลด
+  const downloadDaysToInclude = React.useMemo(() => {
+    if (typeof selectedDay === 'number') {
+      return [selectedDay];
+    }
+    // For 'all_shifts' or 'all', download only the actual active duty days!
+    return activeDaysList.length > 0 ? activeDaysList : daysArray;
+  }, [selectedDay, activeDaysList, daysArray]);
+
+  const downloadRows = React.useMemo(() => {
+    // Strictly enforce only staff who actually have duties on these active days
+    return buildRowsForDays(downloadDaysToInclude, true);
+  }, [downloadDaysToInclude, staffList, labSchedule, donorSchedule, selectedRoom, shiftTypes]);
+
+  // Multi-page pagination chunking: Each page fits on an A4 sheet with repeating table header
+  const paginatedDownloadPages = React.useMemo(() => {
+    if (downloadRows.length === 0) {
+      return [
+        {
+          pageNumber: 1,
+          totalPages: 1,
+          isFirst: true,
+          isLast: true,
+          hasSignatures: true,
+          rows: [],
+        },
+      ];
+    }
+
+    if (downloadRows.length <= 16) {
+      return [
+        {
+          pageNumber: 1,
+          totalPages: 1,
+          isFirst: true,
+          isLast: true,
+          hasSignatures: true,
+          rows: downloadRows,
+        },
+      ];
+    }
+
+    const pages: Array<{
+      isFirst: boolean;
+      isLast: boolean;
+      hasSignatures: boolean;
+      rows: typeof downloadRows;
+    }> = [];
+
+    let remaining = [...downloadRows];
+    let pageIdx = 0;
+
+    while (remaining.length > 0) {
+      const isFirst = pageIdx === 0;
+      const maxWithSig = 16;
+      const maxNoSig = isFirst ? 22 : 24;
+
+      if (remaining.length <= maxWithSig) {
+        pages.push({
+          isFirst,
+          isLast: true,
+          hasSignatures: true,
+          rows: remaining,
+        });
+        break;
+      }
+
+      let takeCount = maxNoSig;
+      const itemsLeft = remaining.length - takeCount;
+      if (itemsLeft > 0 && itemsLeft < 3) {
+        takeCount = Math.max(14, takeCount - 3);
+      }
+
+      pages.push({
+        isFirst,
+        isLast: false,
+        hasSignatures: false,
+        rows: remaining.slice(0, takeCount),
+      });
+
+      remaining = remaining.slice(takeCount);
+      pageIdx++;
+    }
+
+    const totalPages = pages.length;
+    return pages.map((p, idx) => ({
+      ...p,
+      pageNumber: idx + 1,
+      totalPages,
+    }));
+  }, [downloadRows]);
 
   const roomLabel =
     selectedRoom === 'lab'
@@ -119,14 +293,23 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
       ? 'ห้องรับบริจาคโลหิต'
       : 'รวมทุกห้อง (ปฏิบัติการ + รับบริจาค)';
 
-  const dayLabel = selectedDay === 'all' ? 'ทั้งเดือน' : `วันที่ ${selectedDay}`;
+  const dayLabel =
+    selectedDay === 'all_shifts'
+      ? `เฉพาะวันที่มีเวรจริง (${activeDaysList.length} วัน)`
+      : selectedDay === 'all'
+      ? `ทั้งเดือน (1 - ${daysInMonth})`
+      : `วันที่ ${selectedDay} (${formatThaiDate(selectedDay, yearMonth)})`;
 
   const handleDownloadPdf = async () => {
     setIsExporting(true);
     try {
+      const dayFileName =
+        typeof selectedDay === 'number'
+          ? `วันที่${selectedDay}`
+          : `วันที่มีเวรจริง_${activeDaysList.length}วัน`;
       await exportElementToPdf({
         orientation: 'portrait',
-        fileName: `ใบสรุปเวรประจำวัน_${roomLabel}_${selectedDay === 'all' ? yearMonth : `วันที่${selectedDay}`}.pdf`,
+        fileName: `ใบสรุปเวรประจำวัน_${roomLabel}_${yearMonth}_${dayFileName}.pdf`,
         elementId: 'printable-daily-summary-portrait',
       });
     } catch (err) {
@@ -135,6 +318,57 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleDownloadCsv = () => {
+    // Generate CSV UTF-8 with BOM for Excel compatibility with Thai characters
+    const headers = [
+      'ลำดับ',
+      'วัน/เดือน/ปี',
+      'วัน',
+      'ชื่อ-สกุล เจ้าหน้าที่',
+      'ตำแหน่ง',
+      'แผนก/ห้อง',
+      'เวรเช้า',
+      'เวรบ่าย',
+      'เวรดึก',
+      'รหัสเวรที่ปฏิบัติงาน',
+    ];
+
+    const csvContent = downloadRows.map((r, idx) => {
+      const activeShifts = r.activeCodes.join('/');
+      return [
+        idx + 1,
+        `"${formatThaiDate(r.day, yearMonth)}"`,
+        `"${r.dowShort}"`,
+        `"${r.staffName}"`,
+        `"${r.position}"`,
+        `"${r.roomName}"`,
+        `"${r.morningShift || '-'}"`,
+        `"${r.afternoonShift || '-'}"`,
+        `"${r.nightShift || '-'}"`,
+        `"${activeShifts}"`,
+      ].join(',');
+    });
+
+    const bom = '\uFEFF';
+    const csvString = bom + [headers.join(','), ...csvContent].join('\r\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    const dayFileName =
+      typeof selectedDay === 'number'
+        ? `วันที่${selectedDay}`
+        : `วันที่มีเวรจริง_${activeDaysList.length}วัน`;
+    link.setAttribute(
+      'download',
+      `ใบสรุปเวรประจำวัน_${roomLabel}_${yearMonth}_${dayFileName}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -181,39 +415,102 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
             <span className="font-semibold text-stone-700">วันที่:</span>
             <select
               value={selectedDay}
-              onChange={(e) =>
-                setSelectedDay(e.target.value === 'all' ? 'all' : Number(e.target.value))
-              }
-              className="bg-transparent font-medium text-stone-800 focus:outline-hidden cursor-pointer"
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'all_shifts' || val === 'all') {
+                  setSelectedDay(val);
+                } else {
+                  setSelectedDay(Number(val));
+                }
+              }}
+              className="bg-transparent font-medium text-stone-800 focus:outline-hidden cursor-pointer max-w-[260px] truncate"
             >
-              <option value="all">แสดงทุกวันในเดือน</option>
-              {daysArray.map((d) => (
-                <option key={d} value={d}>
-                  วันที่ {d} ({formatThaiDate(d, yearMonth)})
-                </option>
-              ))}
+              <option value="all_shifts">
+                🌟 ดึงเฉพาะวันที่มีเวรจริง ({activeDaysList.length} วัน)
+              </option>
+              <option value="all">แสดงทุกวันในเดือน (1 - {daysInMonth})</option>
+              <optgroup label="เลือกดูรายวัน">
+                {daysArray.map((d) => {
+                  const info = daysWithShiftsMap.get(d);
+                  const hasShifts = Boolean(info && info.count > 0);
+                  return (
+                    <option key={d} value={d}>
+                      วันที่ {d} ({formatThaiDate(d, yearMonth)}){' '}
+                      {hasShifts ? `• [มีเวร ${info?.count} คน]` : '• (ไม่มีเวร)'}
+                    </option>
+                  );
+                })}
+              </optgroup>
             </select>
           </div>
 
-          {/* Download PDF Button */}
+          {/* Toggle for Only Staff with Duties */}
+          <button
+            type="button"
+            onClick={() => setOnlyOnDuty(!onlyOnDuty)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border ${
+              onlyOnDuty
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
+                : 'bg-white text-stone-600 border-stone-300 hover:bg-stone-50'
+            }`}
+            title="สลับการแสดงผลระหว่างเฉพาะผู้มีเวรจริง กับเจ้าหน้าที่ทุกคน"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{onlyOnDuty ? 'เฉพาะผู้มีเวรจริง' : 'แสดงทุกคน'}</span>
+          </button>
+
+          {/* Download PDF Button (Pulling actual duty dates with repeating table header on every page) */}
           <button
             onClick={handleDownloadPdf}
-            disabled={isExporting}
+            disabled={isExporting || downloadRows.length === 0}
             className="py-2 px-3.5 bg-[#F28C38] hover:bg-[#E57A24] text-white font-semibold text-xs rounded-xl border border-[#D56B16] shadow-[1px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-            title="ดาวน์โหลด PDF A4 แนวตั้ง"
+            title={`ดาวน์โหลด PDF A4 แนวตั้ง (จัดหน้าพอดี ${paginatedDownloadPages.length} หน้า • แสดงหัวตารางทุกหน้า)`}
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{isExporting ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF A4 แนวตั้ง'}</span>
+            <span>
+              {isExporting
+                ? 'กำลังสร้าง PDF...'
+                : `ดาวน์โหลด PDF (${paginatedDownloadPages.length} หน้า)`}
+            </span>
+          </button>
+
+          {/* Download Excel / CSV Button */}
+          <button
+            onClick={handleDownloadCsv}
+            disabled={downloadRows.length === 0}
+            className="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs rounded-xl border border-emerald-800 shadow-[1px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+            title={`ดาวน์โหลดไฟล์ Excel / CSV (ดึงเฉพาะวันที่มีเวรจริง ${activeDaysList.length} วัน รวม ${downloadRows.length} รายการ)`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Excel / CSV</span>
+          </button>
+
+          {/* Native Print Button */}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            disabled={downloadRows.length === 0}
+            className="p-2 bg-white hover:bg-stone-50 text-stone-600 rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] transition-all cursor-pointer disabled:opacity-50"
+            title={`สั่งพิมพ์เอกสาร (${paginatedDownloadPages.length} หน้า)`}
+          >
+            <Printer className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Description / Legend Banner */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#FAF5EB] rounded-xl border border-[#E7DFD5] text-xs text-stone-600">
-        <div className="flex items-center gap-4">
-          <span className="font-medium">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-[#FAF5EB] rounded-xl border border-[#E7DFD5] text-xs text-stone-600">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-medium text-stone-800">
             สรุปข้อมูล: <strong>{roomLabel}</strong> • <strong>{dayLabel}</strong> •{' '}
             {formatYearMonthThai(yearMonth)}
+          </span>
+          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg font-semibold text-[11px] flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+            <span>
+              ดึงวันที่มีเวรจริงใส่ในตารางที่ดาวน์โหลด: <strong>{activeDaysList.length} วัน</strong>{' '}
+              ({activeDaysList.length <= 15 ? `วันที่ ${activeDaysList.join(', ')}` : `วันที่ ${activeDaysList.slice(0, 8).join(', ')}... ถึง ${activeDaysList[activeDaysList.length - 1]}`}) • รวม {downloadRows.length} รายการ
+            </span>
           </span>
         </div>
         <div className="flex items-center gap-4 text-[11px]">
@@ -270,8 +567,9 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
                   return (
                     <tr key={idx} className="hover:bg-amber-50/30 transition-colors">
                       {/* Col 1: วัน/เดือน */}
-                      <td className="py-2.5 px-3 text-center font-mono font-medium text-stone-700 border-r border-[#EFE7DC]">
-                        {row.dateStr}
+                      <td className="py-2.5 px-3 text-center border-r border-[#EFE7DC]">
+                        <div className="font-mono font-bold text-stone-800">{row.dateStr}</div>
+                        <div className="text-[10px] text-stone-500 font-normal">{row.fullDateStr}</div>
                       </td>
 
                       {/* Col 2: ชื่อ สกุล เจ้าหน้าที่ */}
@@ -346,121 +644,188 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
       </div>
 
       {/* Offscreen container specifically for A4 Portrait PDF Export & Printing */}
-      <div className="fixed -left-[99999px] top-0 pointer-events-none z-[-100] opacity-100">
-        <div
-          id="printable-daily-summary-portrait"
-          className="p-8 bg-white text-stone-900 font-sans w-[800px] min-h-[1130px] flex flex-col justify-between"
-        >
-          <div>
-            {/* Hospital Header */}
-            <div className="text-center pb-3 mb-4 border-b-2 border-stone-800">
-              <h1 className="text-base font-bold font-['Prompt']">ใบสรุปเวรการปฏิบัติงานประจำวัน</h1>
-              <h2 className="text-sm font-semibold">
-                งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
-              </h2>
-              <p className="text-xs text-stone-600 mt-1">
-                แผนก: {roomLabel} • ประจำเดือน {formatYearMonthThai(yearMonth)}{' '}
-                {selectedDay !== 'all' && `(${formatThaiDate(selectedDay, yearMonth)})`}
-              </p>
-            </div>
+      <div className="fixed -left-[99999px] top-0 pointer-events-none z-[-100] opacity-100 flex flex-col gap-6">
+        <div id="printable-daily-summary-portrait">
+          {paginatedDownloadPages.map((page) => (
+            <div
+              key={page.pageNumber}
+              className="pdf-page p-8 bg-white text-stone-900 font-sans w-[800px] h-[1130px] flex flex-col justify-between mb-8 border border-stone-200"
+              style={{ boxSizing: 'border-box' }}
+            >
+              <div>
+                {/* Header: Full on Page 1, Continuation Header with repeating department & page count on Page 2+ */}
+                {page.isFirst ? (
+                  <>
+                    <div className="text-center pb-3 mb-3 border-b-2 border-stone-800">
+                      <h1 className="text-base font-bold font-['Prompt']">ใบสรุปเวรการปฏิบัติงานประจำวัน</h1>
+                      <h2 className="text-sm font-semibold">
+                        งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
+                      </h2>
+                      <p className="text-xs text-stone-600 mt-0.5">
+                        แผนก: {roomLabel} • ประจำเดือน {formatYearMonthThai(yearMonth)}
+                      </p>
+                      <p className="text-[11px] font-medium text-stone-700 mt-0.5">
+                        {typeof selectedDay === 'number'
+                          ? `(ข้อมูลประจำวันที่ ${formatThaiDate(selectedDay, yearMonth)})`
+                          : `(ดึงเฉพาะวันที่มีเวรปฏิบัติงานจริง: วันที่ ${activeDaysList.join(', ')} รวม ${activeDaysList.length} วัน • ${downloadRows.length} รายการ)`}
+                      </p>
+                    </div>
 
-            {/* Table explanation note */}
-            <div className="flex items-center justify-between text-[10px] text-stone-600 mb-2 px-1">
-              <span>* สรุปการปฏิบัติงานตามตารางเวรประจำวัน</span>
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 bg-white border border-stone-400 inline-block" />
-                  <span>มีเวร (ช่องว่างสีขาว)</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 bg-stone-200 border border-stone-300 inline-block" />
-                  <span>ไม่มีเวร (สีเทา)</span>
-                </span>
+                    <div className="flex items-center justify-between text-[10px] text-stone-600 mb-2 px-1">
+                      <span>* สรุปการปฏิบัติงานตามตารางเวรประจำวัน (ดึงเฉพาะวันที่มีเวรจริงใส่ในตารางดาวน์โหลด)</span>
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-3 bg-white border border-stone-400 inline-block" />
+                          <span>มีเวร (ช่องว่างสีขาว)</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-3 bg-stone-200 border border-stone-300 inline-block" />
+                          <span>ไม่มีเวร (สีเทา)</span>
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="pb-2.5 mb-3 border-b-2 border-stone-800 flex items-center justify-between">
+                    <div>
+                      <h1 className="text-sm font-bold font-['Prompt'] text-stone-800">
+                        ใบสรุปเวรการปฏิบัติงานประจำวัน (ต่อ)
+                      </h1>
+                      <p className="text-[11px] text-stone-600">
+                        งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ • แผนก: {roomLabel} • ประจำเดือน {formatYearMonthThai(yearMonth)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-md font-mono text-xs font-bold">
+                        หน้า {page.pageNumber} / {page.totalPages}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6-Column Clean Table with repeating thead on EVERY page */}
+                <table className="w-full text-xs border-collapse border border-stone-800">
+                  <thead className="bg-[#F5ECE0] font-bold text-center">
+                    <tr>
+                      <th className="border border-stone-800 p-2 w-24">1. วัน/เดือน</th>
+                      <th className="border border-stone-800 p-2 text-left min-w-[160px]">
+                        2. ชื่อ-สกุล เจ้าหน้าที่
+                      </th>
+                      <th className="border border-stone-800 p-2 text-left min-w-[130px]">3. ตำแหน่ง</th>
+                      <th className="border border-stone-800 p-2 w-20">4. เวรเช้า</th>
+                      <th className="border border-stone-800 p-2 w-20">5. เวรบ่าย</th>
+                      <th className="border border-stone-800 p-2 w-20">6. เวรดึก</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {page.rows.map((row, idx) => {
+                      const hasMorn = Boolean(row.morningShift);
+                      const hasAft = Boolean(row.afternoonShift);
+                      const hasNgt = Boolean(row.nightShift);
+
+                      return (
+                        <tr key={idx} className="border-b border-stone-400">
+                          <td className="border border-stone-800 p-1 text-center font-mono">
+                            <div className="font-bold text-xs">{row.dateStr}</div>
+                            <div className="text-[9px] text-stone-600 font-sans">{formatThaiDate(row.day, yearMonth)}</div>
+                          </td>
+                          <td className="border border-stone-800 p-1.5 font-medium">
+                            {row.staffName}
+                            {selectedRoom === 'all' && ` (${row.roomName})`}
+                          </td>
+                          <td className="border border-stone-800 p-1.5 text-stone-600">{row.position}</td>
+
+                          {/* Morning: white blank if has duty, light grey if no duty */}
+                          <td
+                            className={`border border-stone-800 p-1.5 text-center ${
+                              hasMorn ? 'bg-white' : 'bg-stone-200/80'
+                            }`}
+                          >
+                            <div className="h-4" />
+                          </td>
+
+                          {/* Afternoon: white blank if has duty, light grey if no duty */}
+                          <td
+                            className={`border border-stone-800 p-1.5 text-center ${
+                              hasAft ? 'bg-white' : 'bg-stone-200/80'
+                            }`}
+                          >
+                            <div className="h-4" />
+                          </td>
+
+                          {/* Night: white blank if has duty, light grey if no duty */}
+                          <td
+                            className={`border border-stone-800 p-1.5 text-center ${
+                              hasNgt ? 'bg-white' : 'bg-stone-200/80'
+                            }`}
+                          >
+                            <div className="h-4" />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Bottom Area: Signatures on last page and page number footer on every page */}
+              <div>
+                {page.hasSignatures && (
+                  <div className="grid grid-cols-2 gap-8 pt-6 pb-2 text-xs text-center border-t border-stone-300 mt-4">
+                    <div>
+                      <p className="mb-7">ลงชื่อ..........................................................</p>
+                      <p className="font-semibold">(..........................................................)</p>
+                      <p className="text-stone-500 text-[11px]">ผู้รายงานเวรประจำวัน</p>
+                    </div>
+                    <div>
+                      <p className="mb-7">ลงชื่อ..........................................................</p>
+                      <p className="font-semibold">( ทนพญ.ณิชาภา เจียมจรรยา )</p>
+                      <p className="text-stone-500 text-[11px]">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer on EVERY page with page count */}
+                <div className="flex items-center justify-between text-[10px] text-stone-500 pt-2 border-t border-stone-200 mt-2">
+                  <span>งานเวชศาสตร์บริการโลหิต โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ</span>
+                  <span className="font-mono font-medium">
+                    หน้า {page.pageNumber} จากทั้งหมด {page.totalPages} หน้า
+                  </span>
+                </div>
               </div>
             </div>
-
-            {/* 6-Column Clean Table with sticky/repeating thead for multi-page */}
-            <table className="w-full text-xs border-collapse border border-stone-800" style={{ pageBreakInside: 'auto' }}>
-              <thead style={{ display: 'table-header-group' }} className="bg-[#F5ECE0] font-bold text-center">
-                <tr style={{ pageBreakInside: 'avoid' }}>
-                  <th className="border border-stone-800 p-2 w-20">1. วัน/เดือน</th>
-                  <th className="border border-stone-800 p-2 text-left min-w-[160px]">
-                    2. ชื่อ-สกุล เจ้าหน้าที่
-                  </th>
-                  <th className="border border-stone-800 p-2 text-left min-w-[130px]">3. ตำแหน่ง</th>
-                  <th className="border border-stone-800 p-2 w-20">4. เวรเช้า</th>
-                  <th className="border border-stone-800 p-2 w-20">5. เวรบ่าย</th>
-                  <th className="border border-stone-800 p-2 w-20">6. เวรดึก</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, idx) => {
-                  const hasMorn = Boolean(row.morningShift);
-                  const hasAft = Boolean(row.afternoonShift);
-                  const hasNgt = Boolean(row.nightShift);
-
-                  return (
-                    <tr key={idx} className="border-b border-stone-400" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                      <td className="border border-stone-800 p-1.5 text-center font-mono">
-                        {row.dateStr}
-                      </td>
-                      <td className="border border-stone-800 p-1.5 font-medium">
-                        {row.staffName}
-                        {selectedRoom === 'all' && ` (${row.roomName})`}
-                      </td>
-                      <td className="border border-stone-800 p-1.5 text-stone-600">{row.position}</td>
-
-                      {/* Request 8: Morning: white blank if has duty, light grey if no duty */}
-                      <td
-                        className={`border border-stone-800 p-1.5 text-center ${
-                          hasMorn ? 'bg-white' : 'bg-stone-200/80'
-                        }`}
-                      >
-                        {/* ช่องว่างสีขาว ไม่แสดงรหัสเวร */}
-                        <div className="h-4" />
-                      </td>
-
-                      {/* Request 8: Afternoon: white blank if has duty, light grey if no duty */}
-                      <td
-                        className={`border border-stone-800 p-1.5 text-center ${
-                          hasAft ? 'bg-white' : 'bg-stone-200/80'
-                        }`}
-                      >
-                        {/* ช่องว่างสีขาว ไม่แสดงรหัสเวร */}
-                        <div className="h-4" />
-                      </td>
-
-                      {/* Request 8: Night: white blank if has duty, light grey if no duty */}
-                      <td
-                        className={`border border-stone-800 p-1.5 text-center ${
-                          hasNgt ? 'bg-white' : 'bg-stone-200/80'
-                        }`}
-                      >
-                        {/* ช่องว่างสีขาว ไม่แสดงรหัสเวร */}
-                        <div className="h-4" />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Signature Footer */}
-          <div className="grid grid-cols-2 gap-8 pt-8 text-xs text-center border-t border-stone-200 mt-6" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-            <div>
-              <p className="mb-8">ลงชื่อ..........................................................</p>
-              <p className="font-semibold">(..........................................................)</p>
-              <p className="text-stone-500">ผู้รายงานเวรประจำวัน</p>
-            </div>
-            <div>
-              <p className="mb-8">ลงชื่อ..........................................................</p>
-              <p className="font-semibold">( ทนพญ.ณิชาภา เจียมจรรยา )</p>
-              <p className="text-stone-500">หัวหน้างานเวชศาสตร์บริการโลหิต</p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
+
+      {/* Print stylesheet to ensure .pdf-page breaks cleanly per page */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-daily-summary-portrait,
+          #printable-daily-summary-portrait * {
+            visibility: visible;
+          }
+          #printable-daily-summary-portrait {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .pdf-page {
+            page-break-after: always;
+            break-after: page;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            height: auto !important;
+            min-height: 98vh !important;
+            padding: 1.5cm 1.5cm !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
