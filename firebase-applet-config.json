@@ -1,12 +1,11 @@
 {
-  "projectId": "theta-conduit-kghtt",
-  "appId": "1:850916195929:web:632c085ca9565315597b48",
-  "apiKey": "AIzaSyB-qAlUgYolktF_605h20laac686jwCy5w",
-  "authDomain": "theta-conduit-kghtt.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-bloodbankdutysch-919a1921-d01f-4179-a1d6-d3e02e3f3626",
-  "storageBucket": "theta-conduit-kghtt.firebasestorage.app",
-  "messagingSenderId": "850916195929",
+  "projectId": "duty-schedule-tm",
+  "appId": "1:73899962523:web:a79016ad7462753ee2d63e",
+  "apiKey": "AIzaSyAKeKv54CBk8C68zuuAXYG0wt00nEmlIXU",
+  "authDomain": "duty-schedule-tm.firebaseapp.com",
+  "storageBucket": "duty-schedule-tm.firebasestorage.app",
+  "messagingSenderId": "73899962523",
   "measurementId": "",
-  "oAuthClientId": "850916195929-eofsmtco1grdkp0f2a2c282kqqoqkr5j.apps.googleusercontent.com",
+  "oAuthClientId": "73899962523-t1lbafp8cqorfu8vaurj5oj94q29m0nl.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

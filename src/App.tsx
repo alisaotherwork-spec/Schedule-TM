@@ -15,7 +15,18 @@ import {
   removeShiftType,
   subscribeSchedule,
   saveSchedule,
+  signInGoogleWorkspace,
+  logoutGoogleWorkspace,
+  getGoogleAccessToken,
+  initGoogleWorkspaceAuth,
 } from './firebase';
+import { User } from 'firebase/auth';
+import {
+  syncScheduleToGoogleSheet,
+  SyncResult,
+} from './services/googleDriveService';
+import { GoogleDriveSyncModal } from './components/GoogleDriveSyncModal';
+import { formatYearMonthThai } from './utils/dateUtils';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { ScheduleGrid } from './components/ScheduleGrid';
 import { DailySummaryView } from './components/DailySummaryView';
@@ -38,6 +49,28 @@ export default function App() {
   // Current month default
   const [yearMonth, setYearMonth] = useState('2026-10');
   const [activeTab, setActiveTab] = useState<ActiveTab>('lab');
+
+  // Google Workspace / Drive Backup State
+  const [googleWorkspaceUser, setGoogleWorkspaceUser] = useState<User | null>(null);
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+  const [isSyncingToDrive, setIsSyncingToDrive] = useState(false);
+  const [lastDriveSyncResult, setLastDriveSyncResult] = useState<SyncResult | null>(() => {
+    try {
+      const saved = localStorage.getItem('bloodbank_last_drive_sync');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('bloodbank_auto_sync');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+  const syncDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Authentication State
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
@@ -237,6 +270,68 @@ export default function App() {
     return () => unsubscribe();
   }, [yearMonth]);
 
+  // Google Workspace Auth state listener
+  useEffect(() => {
+    const unsubscribe = initGoogleWorkspaceAuth(
+      (user) => {
+        setGoogleWorkspaceUser(user);
+      },
+      () => {
+        setGoogleWorkspaceUser(null);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const handleToggleAutoSync = (enabled: boolean) => {
+    setAutoSyncEnabled(enabled);
+    localStorage.setItem('bloodbank_auto_sync', JSON.stringify(enabled));
+  };
+
+  const handleSignInGoogleWorkspace = async () => {
+    try {
+      const result = await signInGoogleWorkspace();
+      if (result) {
+        setGoogleWorkspaceUser(result.user);
+      }
+    } catch (err: any) {
+      console.warn('Google Workspace login failed:', err);
+      throw err;
+    }
+  };
+
+  const handleSignOutGoogleWorkspace = async () => {
+    await logoutGoogleWorkspace();
+    setGoogleWorkspaceUser(null);
+  };
+
+  const handleSyncToDriveNow = async () => {
+    let token = getGoogleAccessToken();
+    if (!token) {
+      const signInRes = await signInGoogleWorkspace();
+      if (!signInRes?.accessToken) {
+        throw new Error('กรุณาลงชื่อเข้าใช้ Google เพื่อดำเนินการสำรองข้อมูล');
+      }
+      token = signInRes.accessToken;
+      setGoogleWorkspaceUser(signInRes.user);
+    }
+
+    setIsSyncingToDrive(true);
+    try {
+      const res = await syncScheduleToGoogleSheet(
+        token,
+        yearMonth,
+        labSchedule,
+        donorSchedule,
+        staffList,
+        shiftTypes
+      );
+      setLastDriveSyncResult(res);
+    } finally {
+      setIsSyncingToDrive(false);
+    }
+  };
+
   // Handle Login & Logout
   const handleLogin = (user: UserSession) => {
     setCurrentUser(user);
@@ -285,6 +380,33 @@ export default function App() {
       await saveSchedule(updatedSchedule);
     } catch (err) {
       console.warn('Failed to save to Firestore, stored locally:', err);
+    }
+
+    // Trigger Debounced Auto-Sync to Google Drive if connected and enabled
+    if (autoSyncEnabled) {
+      const token = getGoogleAccessToken();
+      if (token) {
+        if (syncDebounceTimerRef.current) {
+          clearTimeout(syncDebounceTimerRef.current);
+        }
+        syncDebounceTimerRef.current = setTimeout(async () => {
+          try {
+            const currentLab = isLab ? updatedSchedule : labSchedule;
+            const currentDonor = isLab ? donorSchedule : updatedSchedule;
+            const res = await syncScheduleToGoogleSheet(
+              token,
+              yearMonth,
+              currentLab,
+              currentDonor,
+              staffList,
+              shiftTypes
+            );
+            setLastDriveSyncResult(res);
+          } catch (syncErr) {
+            console.warn('Auto-sync to Google Drive warning:', syncErr);
+          }
+        }, 2500);
+      }
     }
   };
 
@@ -418,6 +540,8 @@ export default function App() {
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
         onOpenShiftModal={() => setIsShiftModalOpen(true)}
+        onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
+        isGoogleDriveConnected={Boolean(googleWorkspaceUser)}
       />
 
       {/* Main Content Area */}
@@ -437,6 +561,7 @@ export default function App() {
             onOpenAutoSchedule={() => setIsAutoScheduleModalOpen(true)}
             onOpenStaffModal={() => setIsStaffModalOpen(true)}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
+            onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
           />
         )}
 
@@ -455,6 +580,7 @@ export default function App() {
             onOpenAutoSchedule={() => setIsAutoScheduleModalOpen(true)}
             onOpenStaffModal={() => setIsStaffModalOpen(true)}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
+            onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
           />
         )}
 
@@ -539,6 +665,20 @@ export default function App() {
         shiftTypes={shiftTypes}
         currentSchedule={activeTab === 'donor' ? donorSchedule : labSchedule}
         onApplySchedule={handleApplyAutoSchedule}
+      />
+
+      <GoogleDriveSyncModal
+        isOpen={isDriveModalOpen}
+        onClose={() => setIsDriveModalOpen(false)}
+        currentUser={googleWorkspaceUser}
+        onSignIn={handleSignInGoogleWorkspace}
+        onSignOut={handleSignOutGoogleWorkspace}
+        onSyncNow={handleSyncToDriveNow}
+        isSyncing={isSyncingToDrive}
+        lastSyncResult={lastDriveSyncResult}
+        autoSyncEnabled={autoSyncEnabled}
+        onToggleAutoSync={handleToggleAutoSync}
+        currentMonthThai={formatYearMonthThai(yearMonth)}
       />
     </div>
   );

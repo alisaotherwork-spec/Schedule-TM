@@ -3,7 +3,7 @@ import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } f
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -17,6 +17,7 @@ interface ScheduleGridProps {
   onOpenAutoSchedule: () => void;
   onOpenStaffModal: () => void;
   onOpenShiftModal: () => void;
+  onOpenGoogleDriveModal?: () => void;
 }
 
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
@@ -30,6 +31,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   onOpenAutoSchedule,
   onOpenStaffModal,
   onOpenShiftModal,
+  onOpenGoogleDriveModal,
 }) => {
   const [selectedCell, setSelectedCell] = useState<{ staffId: string; day: number; staffName: string } | null>(null);
   const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
@@ -285,6 +287,18 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
             <DollarSign className="w-3.5 h-3.5 text-amber-600" />
             <span>กำหนดค่าเวร</span>
           </button>
+
+          {/* Google Drive & Sheet Backup Button */}
+          {onOpenGoogleDriveModal && (
+            <button
+              onClick={onOpenGoogleDriveModal}
+              className="py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-800 font-medium text-xs rounded-xl border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+              title="สำรองข้อมูลตารางเวรไปยัง Google Drive โฟลเดอร์ 'ตารางเวร' และ Sheet 'ตารางเวร-สำรอง'"
+            >
+              <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+              <span>สำรอง Drive</span>
+            </button>
+          )}
 
           {/* Download PDF Button */}
           <button

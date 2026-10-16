@@ -9,11 +9,78 @@ import {
   deleteDoc,
   getDocs
 } from 'firebase/firestore';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signOut,
+  User
+} from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 import { Staff, ShiftType, MonthSchedule } from './types';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const firestoreDbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db = firestoreDbId ? getFirestore(app, firestoreDbId) : getFirestore(app);
+export const auth = getAuth(app);
+
+// Google Workspace Scopes requested
+export const WORKSPACE_SCOPES = [
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/spreadsheets',
+];
+
+const googleProvider = new GoogleAuthProvider();
+WORKSPACE_SCOPES.forEach((scope) => googleProvider.addScope(scope));
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+let isSigningIn = false;
+let cachedAccessToken: string | null = null;
+
+export const initGoogleWorkspaceAuth = (
+  onAuthSuccess?: (user: User, token: string) => void,
+  onAuthFailure?: () => void
+) => {
+  return onAuthStateChanged(auth, async (user: User | null) => {
+    if (user && cachedAccessToken) {
+      onAuthSuccess?.(user, cachedAccessToken);
+    } else {
+      onAuthFailure?.();
+    }
+  });
+};
+
+export const signInGoogleWorkspace = async (): Promise<{ user: User; accessToken: string }> => {
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(auth, googleProvider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      throw new Error('ไม่ได้รับ Access Token จากการลงชื่อเข้าใช้ Google');
+    }
+    cachedAccessToken = credential.accessToken;
+    return { user: result.user, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    console.error('Google Workspace Sign-in error:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+export const getGoogleAccessToken = (): string | null => {
+  return cachedAccessToken;
+};
+
+export const setGoogleAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+};
+
+export const logoutGoogleWorkspace = async () => {
+  cachedAccessToken = null;
+  await signOut(auth);
+};
 
 export enum OperationType {
   CREATE = 'create',

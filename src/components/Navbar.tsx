@@ -21,6 +21,7 @@ import {
   DollarSign,
   Menu,
   X,
+  Cloud,
 } from 'lucide-react';
 import {
   CuteAlien,
@@ -44,6 +45,8 @@ interface NavbarProps {
   onOpenLogin: () => void;
   onLogout: () => void;
   onOpenShiftModal?: () => void;
+  onOpenGoogleDriveModal?: () => void;
+  isGoogleDriveConnected?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -55,6 +58,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLogin,
   onLogout,
   onOpenShiftModal,
+  onOpenGoogleDriveModal,
+  isGoogleDriveConnected,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -343,12 +348,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Quick Month Name Indicator with Cute Space Decor */}
-        <div className="hidden lg:flex items-center gap-3 text-xs font-medium text-stone-500">
-          <CuteSpaceBarStrip variant="compact" />
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/80 rounded-xl border border-[#DACFBF] shadow-[1px_2px_0px_rgba(70,60,50,0.06)]">
-            <Calendar className="w-3.5 h-3.5 text-stone-400" />
-            <span>เดือนที่เลือก: {formatYearMonthThai(yearMonth)}</span>
+        {/* Right side controls: Google Drive Sync and Month Indicator */}
+        <div className="flex items-center gap-3 text-xs font-medium text-stone-500 shrink-0">
+          {onOpenGoogleDriveModal && (
+            <button
+              onClick={onOpenGoogleDriveModal}
+              className="py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50/90 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] shrink-0"
+              title="เชื่อมต่อและสำรองข้อมูล Google Drive / Google Sheets"
+            >
+              <Cloud className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Google Drive</span>
+              {isGoogleDriveConnected && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" title="เชื่อมต่อแล้ว" />
+              )}
+            </button>
+          )}
+
+          <div className="hidden lg:flex items-center gap-3">
+            <CuteSpaceBarStrip variant="compact" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/80 rounded-xl border border-[#DACFBF] shadow-[1px_2px_0px_rgba(70,60,50,0.06)]">
+              <Calendar className="w-3.5 h-3.5 text-stone-400" />
+              <span>เดือนที่เลือก: {formatYearMonthThai(yearMonth)}</span>
+            </div>
           </div>
         </div>
       </nav>
@@ -365,6 +386,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {currentUser.isAdmin ? 'ผู้ดูแลระบบสูงสุด (alisa)' : currentUser.thaiName}
               </p>
             </div>
+          )}
+          {onOpenGoogleDriveModal && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenGoogleDriveModal();
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Cloud className="w-4 h-4 text-emerald-700" />
+              <span>สำรองข้อมูล Google Drive / Sheets</span>
+              {isGoogleDriveConnected && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+              )}
+            </button>
           )}
           <div className="grid grid-cols-2 gap-2 text-xs pt-1">
             <button
