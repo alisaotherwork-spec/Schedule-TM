@@ -458,30 +458,14 @@ export const INITIAL_SHIFT_TYPES: ShiftType[] = [
   },
 ];
 
-// Helper to seed sample shifts for month
+// Helper to generate a blank schedule for a month
 export function generateInitialSchedule(roomId: 'lab' | 'donor', yearMonth: string): MonthSchedule {
-  const [year, month] = yearMonth.split('-').map(Number);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const assignments: Record<string, Record<number, string>> = {};
-
-  const shiftsPool = roomId === 'lab' 
-    ? ['MORN', 'EVN1', 'NGHT', 'LAB1', 'OFFF', 'OFFF'] 
-    : ['MORN', 'EVN1', 'BD01', 'BD02', 'OFFF', 'OFFF'];
-
-  INITIAL_STAFF.forEach((staff, staffIdx) => {
-    assignments[staff.id] = {};
-    for (let day = 1; day <= daysInMonth; day++) {
-      const shiftIndex = (day + staffIdx * 2) % shiftsPool.length;
-      assignments[staff.id][day] = shiftsPool[shiftIndex];
-    }
-  });
-
   return {
     id: `${roomId}_${yearMonth}`,
     roomId,
     yearMonth,
-    assignments,
+    assignments: {},
     updatedAt: new Date().toISOString(),
-    updatedBy: 'alisa (System Admin)',
+    updatedBy: 'system',
   };
 }

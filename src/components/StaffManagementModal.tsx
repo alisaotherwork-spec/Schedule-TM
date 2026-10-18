@@ -182,35 +182,46 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
     }
   };
 
-  const handleDelete = async (staffId: string, name: string) => {
-    if (confirm(`คุณต้องการลบ "${name}" ออกจากรายชื่อเจ้าหน้าที่หรือไม่?`)) {
-      try {
-        await onDeleteStaff(staffId);
-        setNotice(`ลบ "${name}" สำเร็จแล้ว`);
-        setTimeout(() => setNotice(null), 3000);
-      } catch (err) {
-        console.error(err);
-        alert('เกิดข้อผิดพลาดในการลบ');
-      }
+  const [deletingStaff, setDeletingStaff] = useState<{ id: string; name: string } | null>(null);
+  const [resettingStaff, setResettingStaff] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDelete = (staffId: string, name: string) => {
+    setDeletingStaff({ id: staffId, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingStaff) return;
+    try {
+      await onDeleteStaff(deletingStaff.id);
+      setNotice(`ลบ "${deletingStaff.name}" สำเร็จแล้ว`);
+      setTimeout(() => setNotice(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setNotice('เกิดข้อผิดพลาดในการลบเจ้าหน้าที่');
+      setTimeout(() => setNotice(null), 3000);
+    } finally {
+      setDeletingStaff(null);
     }
   };
 
-  const handleResetPassword = async (staffId: string, name: string) => {
-    if (
-      confirm(
-        `คุณต้องการรีเซ็ตรหัสผ่านของผู้ดูแลระบบย่อย "${name}" กลับเป็น "1234" และบังคับเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไปหรือไม่?`
-      )
-    ) {
-      try {
-        if (onResetSubAdminPassword) {
-          await onResetSubAdminPassword(staffId);
-          setNotice(`รีเซ็ตรหัสผ่านของ "${name}" กลับเป็น 1234 สำเร็จแล้ว`);
-          setTimeout(() => setNotice(null), 4000);
-        }
-      } catch (err) {
-        console.error(err);
-        alert('เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน');
+  const handleResetPassword = (staffId: string, name: string) => {
+    setResettingStaff({ id: staffId, name });
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resettingStaff) return;
+    try {
+      if (onResetSubAdminPassword) {
+        await onResetSubAdminPassword(resettingStaff.id);
+        setNotice(`รีเซ็ตรหัสผ่านของ "${resettingStaff.name}" กลับเป็น 1234 สำเร็จแล้ว`);
+        setTimeout(() => setNotice(null), 4000);
       }
+    } catch (err) {
+      console.error(err);
+      setNotice('เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน');
+      setTimeout(() => setNotice(null), 3000);
+    } finally {
+      setResettingStaff(null);
     }
   };
 
@@ -598,16 +609,61 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
           })}
         </div>
 
-        {/* Footer Note */}
-        <div className="pt-3 border-t border-[#EFE7DC] text-[11px] text-stone-500 flex items-center justify-between shrink-0">
-          <span>รวมเจ้าหน้าที่ทั้งหมด {staffList.length} ท่าน</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-[#E8DEC8] hover:bg-[#DCD1BA] text-stone-800 font-medium rounded-lg text-xs cursor-pointer"
-          >
-            ปิดหน้าต่าง
-          </button>
-        </div>
+        {/* Delete Staff Confirmation Dialog */}
+        {deletingStaff && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-lg p-5 max-w-sm w-full animate-scaleUp">
+              <h4 className="text-sm font-bold text-stone-800 mb-2">ยืนยันการลบเจ้าหน้าที่</h4>
+              <p className="text-xs text-stone-600 mb-4">
+                คุณต้องการลบ <strong>"{deletingStaff.name}"</strong> ออกจากรายชื่อเจ้าหน้าที่ใช่หรือไม่?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingStaff(null)}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs"
+                >
+                  ยืนยันลบ
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reset Password Confirmation Dialog */}
+        {resettingStaff && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-lg p-5 max-w-sm w-full animate-scaleUp">
+              <h4 className="text-sm font-bold text-stone-800 mb-2">ยืนยันรีเซ็ตรหัสผ่าน</h4>
+              <p className="text-xs text-stone-600 mb-4">
+                คุณต้องการรีเซ็ตรหัสผ่านของผู้ดูแลระบบย่อย <strong>"{resettingStaff.name}"</strong> กลับเป็น <strong>"1234"</strong> และบังคับเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไปใช่หรือไม่?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResettingStaff(null)}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmResetPassword}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs"
+                >
+                  ยืนยันรีเซ็ต
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

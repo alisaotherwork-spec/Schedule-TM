@@ -3,7 +3,7 @@ import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } f
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -18,6 +18,7 @@ interface ScheduleGridProps {
   onOpenStaffModal: () => void;
   onOpenShiftModal: () => void;
   onOpenGoogleDriveModal?: () => void;
+  onClearSchedule?: () => void;
 }
 
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
@@ -32,6 +33,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   onOpenStaffModal,
   onOpenShiftModal,
   onOpenGoogleDriveModal,
+  onClearSchedule,
 }) => {
   const [selectedCell, setSelectedCell] = useState<{ staffId: string; day: number; staffName: string } | null>(null);
   const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
@@ -287,6 +289,24 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
             <DollarSign className="w-3.5 h-3.5 text-amber-600" />
             <span>กำหนดค่าเวร</span>
           </button>
+
+          {onClearSchedule && (
+            <button
+              onClick={() => {
+                if (currentUser?.isAdmin || currentUser?.isSubAdmin) {
+                  onClearSchedule();
+                } else {
+                  setPermissionNotice('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถล้างตารางเวรได้ กรุณาเข้าสู่ระบบ');
+                  setTimeout(() => setPermissionNotice(null), 4000);
+                }
+              }}
+              className="py-2 px-3 bg-white hover:bg-rose-50 text-stone-700 hover:text-rose-700 font-medium text-xs rounded-xl border border-stone-300 hover:border-rose-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+              title="ล้างตารางเวรทั้งหมดของแผนกนี้ในเดือนนี้ให้เป็นตารางเปล่า"
+            >
+              <Eraser className="w-3.5 h-3.5 text-stone-500" />
+              <span>ล้างเป็นตารางเปล่า</span>
+            </button>
+          )}
 
           {/* Google Drive & Sheet Backup Button */}
           {onOpenGoogleDriveModal && (
@@ -598,7 +618,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     <td className="border border-stone-400 px-1 py-0.5 font-medium">{s.thaiName}</td>
                     <td className="border border-stone-400 px-1 py-0.5 text-stone-600">{s.position}</td>
                     {daysArray.map((day) => {
-                      const code = schedule.assignments[s.id]?.[day];
+                      const code = schedule?.assignments?.[s.id]?.[day];
                       const st = shiftTypes.find((shift) => shift.code === code);
                       return (
                         <td
@@ -638,7 +658,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     <td className="border border-stone-400 px-1 py-0.5 font-medium">{s.thaiName}</td>
                     <td className="border border-stone-400 px-1 py-0.5 text-stone-600">{s.position}</td>
                     {daysArray.map((day) => {
-                      const code = schedule.assignments[s.id]?.[day];
+                      const code = schedule?.assignments?.[s.id]?.[day];
                       const st = shiftTypes.find((shift) => shift.code === code);
                       return (
                         <td
@@ -680,7 +700,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                         <td className="border border-stone-400 px-1 py-0.5 font-medium">{s.thaiName}</td>
                         <td className="border border-stone-400 px-1 py-0.5 text-stone-600">{s.position}</td>
                         {daysArray.map((day) => {
-                          const code = schedule.assignments[s.id]?.[day];
+                          const code = schedule?.assignments?.[s.id]?.[day];
                           const st = shiftTypes.find((shift) => shift.code === code);
                           return (
                             <td

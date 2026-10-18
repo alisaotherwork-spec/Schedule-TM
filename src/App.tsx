@@ -36,6 +36,8 @@ import { LoginModal } from './components/LoginModal';
 import { StaffManagementModal } from './components/StaffManagementModal';
 import { ShiftManagementModal } from './components/ShiftManagementModal';
 import { AutoScheduleModal } from './components/AutoScheduleModal';
+import { ClearScheduleModal } from './components/ClearScheduleModal';
+import { CheckCircle2 } from 'lucide-react';
 import {
   CuteAlien,
   CuteAstronaut,
@@ -72,7 +74,6 @@ export default function App() {
   });
   const syncDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Authentication State
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     try {
       const saved = localStorage.getItem('bloodbank_user');
@@ -81,7 +82,13 @@ export default function App() {
       return null;
     }
   });
-  const [isGuest, setIsGuest] = useState(false);
+  const [isGuest, setIsGuest] = useState(() => {
+    try {
+      return localStorage.getItem('bloodbank_is_guest') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // Data States with robust local fallbacks
   const [staffList, setStaffList] = useState<Staff[]>(() => {
@@ -125,6 +132,8 @@ export default function App() {
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isAutoScheduleModalOpen, setIsAutoScheduleModalOpen] = useState(false);
+  const [clearModalRoom, setClearModalRoom] = useState<RoomId | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Sync with Firestore for Staff
   useEffect(() => {
@@ -196,12 +205,29 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync with Firestore for Lab Schedule (never overwrites user edits)
+  // Helper to detect old dummy placeholder schedule
+  const isLegacyDummySchedule = (sched: MonthSchedule | null) => {
+    if (!sched || !sched.assignments) return false;
+    return sched.updatedBy === 'alisa (System Admin)';
+  };
+
+  // Sync with Firestore for Lab Schedule (starts as blank schedule for new months)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
       if (saved) {
-        setLabSchedule(JSON.parse(saved));
+        const parsed: MonthSchedule = JSON.parse(saved);
+        // If not October 2026 and it has legacy dummy schedule, replace with blank schedule
+        if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
+          const blank = generateInitialSchedule('lab', yearMonth);
+          setLabSchedule(blank);
+          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(blank));
+        } else {
+          setLabSchedule(parsed);
+        }
+      } else {
+        const initial = generateInitialSchedule('lab', yearMonth);
+        setLabSchedule(initial);
       }
     } catch {}
 
@@ -210,18 +236,34 @@ export default function App() {
       yearMonth,
       (sched) => {
         if (sched && sched.assignments) {
-          setLabSchedule(sched);
-          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(sched));
+          // If not October 2026 and it has legacy dummy schedule, replace with blank schedule
+          if (yearMonth !== '2026-10' && isLegacyDummySchedule(sched)) {
+            const blank = generateInitialSchedule('lab', yearMonth);
+            setLabSchedule(blank);
+            localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(blank));
+            saveSchedule(blank).catch(console.warn);
+          } else {
+            setLabSchedule(sched);
+            localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(sched));
+          }
         } else {
           const cached = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
+              if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
+                const blank = generateInitialSchedule('lab', yearMonth);
+                setLabSchedule(blank);
+                localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(blank));
+                saveSchedule(blank).catch(console.warn);
+                return;
+              }
               setLabSchedule(parsed);
               saveSchedule(parsed).catch(console.warn);
               return;
             } catch {}
           }
+          // New month: start with blank schedule
           const initial = generateInitialSchedule('lab', yearMonth);
           setLabSchedule(initial);
           localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(initial));
@@ -233,12 +275,22 @@ export default function App() {
     return () => unsubscribe();
   }, [yearMonth]);
 
-  // Sync with Firestore for Donor Schedule (never overwrites user edits)
+  // Sync with Firestore for Donor Schedule (starts as blank schedule for new months)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
       if (saved) {
-        setDonorSchedule(JSON.parse(saved));
+        const parsed: MonthSchedule = JSON.parse(saved);
+        if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
+          const blank = generateInitialSchedule('donor', yearMonth);
+          setDonorSchedule(blank);
+          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(blank));
+        } else {
+          setDonorSchedule(parsed);
+        }
+      } else {
+        const initial = generateInitialSchedule('donor', yearMonth);
+        setDonorSchedule(initial);
       }
     } catch {}
 
@@ -247,18 +299,33 @@ export default function App() {
       yearMonth,
       (sched) => {
         if (sched && sched.assignments) {
-          setDonorSchedule(sched);
-          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(sched));
+          if (yearMonth !== '2026-10' && isLegacyDummySchedule(sched)) {
+            const blank = generateInitialSchedule('donor', yearMonth);
+            setDonorSchedule(blank);
+            localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(blank));
+            saveSchedule(blank).catch(console.warn);
+          } else {
+            setDonorSchedule(sched);
+            localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(sched));
+          }
         } else {
           const cached = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
+              if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
+                const blank = generateInitialSchedule('donor', yearMonth);
+                setDonorSchedule(blank);
+                localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(blank));
+                saveSchedule(blank).catch(console.warn);
+                return;
+              }
               setDonorSchedule(parsed);
               saveSchedule(parsed).catch(console.warn);
               return;
             } catch {}
           }
+          // New month: start with blank schedule
           const initial = generateInitialSchedule('donor', yearMonth);
           setDonorSchedule(initial);
           localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(initial));
@@ -335,13 +402,21 @@ export default function App() {
   // Handle Login & Logout
   const handleLogin = (user: UserSession) => {
     setCurrentUser(user);
+    setIsGuest(false);
     localStorage.setItem('bloodbank_user', JSON.stringify(user));
+    localStorage.removeItem('bloodbank_is_guest');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     setIsGuest(false);
     localStorage.removeItem('bloodbank_user');
+    localStorage.removeItem('bloodbank_is_guest');
+  };
+
+  const handleContinueAsGuest = () => {
+    setIsGuest(true);
+    localStorage.setItem('bloodbank_is_guest', 'true');
   };
 
   // Update a single shift cell
@@ -513,13 +588,72 @@ export default function App() {
     await handleSaveStaff(updatedStaff);
   };
 
+  // Open Clear Schedule Modal
+  const handleOpenClearModal = (roomId: RoomId) => {
+    setClearModalRoom(roomId);
+  };
+
+  // Execute clearing schedule without window.confirm
+  const handleExecuteClearSchedule = async (scope: 'current' | 'both') => {
+    const targetRoom = clearModalRoom || (activeTab === 'donor' ? 'donor' : 'lab');
+    const shouldClearLab = scope === 'both' || targetRoom === 'lab';
+    const shouldClearDonor = scope === 'both' || targetRoom === 'donor';
+    const updatedBy = currentUser?.englishName || 'admin';
+
+    if (shouldClearLab) {
+      const emptyLab: MonthSchedule = {
+        id: `lab_${yearMonth}`,
+        roomId: 'lab',
+        yearMonth,
+        assignments: {},
+        updatedAt: new Date().toISOString(),
+        updatedBy,
+      };
+      setLabSchedule(emptyLab);
+      localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(emptyLab));
+      try {
+        await saveSchedule(emptyLab);
+      } catch (err) {
+        console.warn('Error clearing lab schedule in Firestore:', err);
+      }
+    }
+
+    if (shouldClearDonor) {
+      const emptyDonor: MonthSchedule = {
+        id: `donor_${yearMonth}`,
+        roomId: 'donor',
+        yearMonth,
+        assignments: {},
+        updatedAt: new Date().toISOString(),
+        updatedBy,
+      };
+      setDonorSchedule(emptyDonor);
+      localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(emptyDonor));
+      try {
+        await saveSchedule(emptyDonor);
+      } catch (err) {
+        console.warn('Error clearing donor schedule in Firestore:', err);
+      }
+    }
+
+    setClearModalRoom(null);
+    setSuccessToast(
+      scope === 'both'
+        ? `ล้างตารางเวรทั้งห้องปฏิบัติการและห้องรับบริจาค ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว`
+        : `ล้างตารางเวร${targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว`
+    );
+    setTimeout(() => {
+      setSuccessToast(null);
+    }, 4000);
+  };
+
   // Login Gate: Show LoginPage before entering the schedule page
   if (!currentUser && !isGuest) {
     return (
       <LoginPage
         staffList={staffList}
         onLogin={handleLogin}
-        onContinueAsGuest={() => setIsGuest(true)}
+        onContinueAsGuest={handleContinueAsGuest}
         onSaveNewPassword={handleSaveNewPassword}
       />
     );
@@ -562,6 +696,7 @@ export default function App() {
             onOpenStaffModal={() => setIsStaffModalOpen(true)}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
             onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
+            onClearSchedule={() => handleOpenClearModal('lab')}
           />
         )}
 
@@ -581,6 +716,7 @@ export default function App() {
             onOpenStaffModal={() => setIsStaffModalOpen(true)}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
             onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
+            onClearSchedule={() => handleOpenClearModal('donor')}
           />
         )}
 
@@ -680,6 +816,25 @@ export default function App() {
         onToggleAutoSync={handleToggleAutoSync}
         currentMonthThai={formatYearMonthThai(yearMonth)}
       />
+
+      {/* Clear Schedule Confirmation Modal */}
+      <ClearScheduleModal
+        isOpen={clearModalRoom !== null}
+        onClose={() => setClearModalRoom(null)}
+        currentRoomId={clearModalRoom || (activeTab === 'donor' ? 'donor' : 'lab')}
+        monthThai={formatYearMonthThai(yearMonth)}
+        onConfirmClear={handleExecuteClearSchedule}
+      />
+
+      {/* Success Toast Notification */}
+      {successToast && (
+        <div className="fixed bottom-6 right-6 z-50 p-4 bg-emerald-800 text-white rounded-2xl shadow-[4px_6px_0px_rgba(70,60,50,0.25)] border-2 border-emerald-600 flex items-center gap-3 animate-slideUp text-xs max-w-md">
+          <div className="p-1.5 bg-emerald-700 rounded-xl shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+          </div>
+          <span className="font-medium leading-relaxed">{successToast}</span>
+        </div>
+      )}
     </div>
   );
 }

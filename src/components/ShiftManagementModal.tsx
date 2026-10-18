@@ -51,6 +51,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [isOt, setIsOt] = useState(false);
   const [color, setColor] = useState(COLOR_OPTIONS[0].value);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Quick Inline Rate Editor in Table
@@ -231,14 +232,24 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     }
   };
 
-  const handleDelete = async (id: string, code: string) => {
-    if (confirm(`คุณต้องการลบรหัสเวร "${code}" หรือไม่?`)) {
-      try {
-        await onDeleteShiftType(id);
-      } catch (err) {
-        console.error(err);
-        alert('เกิดข้อผิดพลาดในการลบ');
-      }
+  const [deletingShift, setDeletingShift] = useState<{ id: string; code: string } | null>(null);
+
+  const handleDelete = (id: string, code: string) => {
+    setDeletingShift({ id, code });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingShift) return;
+    try {
+      await onDeleteShiftType(deletingShift.id);
+      setNotice(`ลบรหัสเวร "${deletingShift.code}" สำเร็จแล้ว`);
+      setTimeout(() => setNotice(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setNotice('เกิดข้อผิดพลาดในการลบ');
+      setTimeout(() => setNotice(null), 3000);
+    } finally {
+      setDeletingShift(null);
     }
   };
 
@@ -278,6 +289,13 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
             </button>
           )}
         </div>
+
+        {/* Notice Banner */}
+        {notice && (
+          <div className="p-3 my-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 animate-fadeIn font-medium">
+            {notice}
+          </div>
+        )}
 
         {/* Form */}
         {editingShift && (
@@ -814,16 +832,33 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="pt-3 border-t border-[#EFE7DC] text-[11px] text-stone-500 flex items-center justify-between shrink-0">
-          <span>รหัสเวรทั้งหมด {shiftTypes.length} รูปแบบ</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-[#E8DEC8] hover:bg-[#DCD1BA] text-stone-800 font-medium rounded-lg text-xs cursor-pointer"
-          >
-            ปิดหน้าต่าง
-          </button>
-        </div>
+        {/* Delete Confirmation Dialog */}
+        {deletingShift && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-lg p-5 max-w-sm w-full animate-scaleUp">
+              <h4 className="text-sm font-bold text-stone-800 mb-2">ยืนยันการลบรหัสเวร</h4>
+              <p className="text-xs text-stone-600 mb-4">
+                คุณต้องการลบรหัสเวร <strong>"{deletingShift.code}"</strong> ออกจากระบบใช่หรือไม่?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingShift(null)}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs"
+                >
+                  ยืนยันลบ
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
