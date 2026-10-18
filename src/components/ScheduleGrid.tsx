@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } from '../types';
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser, Move, Hand, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Maximize2, Minimize2, Calendar } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -39,6 +39,91 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Free Scroll & Pan States
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [isPanToolActive, setIsPanToolActive] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [isExpandedHeight, setIsExpandedHeight] = useState(false);
+  const [viewRange, setViewRange] = useState({ startDay: 1, endDay: 15 });
+
+  const isMouseDownRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+  const hasDraggedRef = useRef(false);
+
+  // Today check for quick scroll and highlight
+  const today = useMemo(() => new Date(), []);
+  const currentYm = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentMonth = yearMonth === currentYm;
+  const todayDay = today.getDate();
+
+  const scrollToDay = (day: number) => {
+    if (!tableContainerRef.current) return;
+    const targetX = Math.max(0, (day - 1) * 56 - 10);
+    tableContainerRef.current.scrollTo({ left: targetX, behavior: 'smooth' });
+  };
+
+  const scrollByAmount = (deltaX: number) => {
+    if (!tableContainerRef.current) return;
+    tableContainerRef.current.scrollBy({ left: deltaX, behavior: 'smooth' });
+  };
+
+  const handleScroll = () => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+    const left = el.scrollLeft;
+    const startDay = Math.min(daysInMonth, Math.max(1, Math.floor(left / 56) + 1));
+    const visibleWidth = Math.max(100, el.clientWidth - 442);
+    const visibleCount = Math.max(1, Math.floor(visibleWidth / 56));
+    const endDay = Math.min(daysInMonth, startDay + visibleCount);
+    setViewRange({ startDay, endDay });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, [data-no-drag]')) return;
+
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    isMouseDownRef.current = true;
+    hasDraggedRef.current = false;
+    startPosRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+    };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isMouseDownRef.current) return;
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    const dx = e.clientX - startPosRef.current.x;
+    const dy = e.clientY - startPosRef.current.y;
+
+    if (!hasDraggedRef.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      hasDraggedRef.current = true;
+      setIsPanning(true);
+    }
+
+    if (hasDraggedRef.current) {
+      container.scrollLeft = startPosRef.current.scrollLeft - dx;
+      container.scrollTop = startPosRef.current.scrollTop - dy;
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!isMouseDownRef.current) return;
+    isMouseDownRef.current = false;
+    setTimeout(() => {
+      hasDraggedRef.current = false;
+      setIsPanning(false);
+    }, 60);
+  };
+
   const roomTitle = roomId === 'lab' ? 'ห้องปฏิบัติการ (Laboratory)' : 'ห้องรับบริจาคโลหิต (Blood Donation Room)';
   const daysInMonth = getDaysInMonth(yearMonth);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -59,6 +144,10 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   };
 
   const handleCellClick = (staff: Staff, day: number) => {
+    if (hasDraggedRef.current || isPanning || isPanToolActive) {
+      return;
+    }
+
     if (!currentUser) {
       setPermissionNotice('กรุณาเข้าสู่ระบบก่อนทำการจัดหรือแก้ไขเวร');
       setTimeout(() => setPermissionNotice(null), 3500);
@@ -278,46 +367,39 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               >
                 <span>จัดการเจ้าหน้าที่</span>
               </button>
+
+              <button
+                onClick={onOpenShiftModal}
+                className="py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 font-medium text-xs rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+                title="กำหนดและแก้ไขอัตราค่าเวร"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+                <span>กำหนดค่าเวร</span>
+              </button>
+
+              {onClearSchedule && (
+                <button
+                  onClick={onClearSchedule}
+                  className="py-2 px-3 bg-white hover:bg-rose-50 text-stone-700 hover:text-rose-700 font-medium text-xs rounded-xl border border-stone-300 hover:border-rose-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="ล้างตารางเวรทั้งหมดของแผนกนี้ในเดือนนี้ให้เป็นตารางเปล่า"
+                >
+                  <Eraser className="w-3.5 h-3.5 text-stone-500" />
+                  <span>ล้างเป็นตารางเปล่า</span>
+                </button>
+              )}
+
+              {/* Google Drive & Sheet Backup Button */}
+              {onOpenGoogleDriveModal && (
+                <button
+                  onClick={onOpenGoogleDriveModal}
+                  className="py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-800 font-medium text-xs rounded-xl border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="สำรองข้อมูลตารางเวรไปยัง Google Drive โฟลเดอร์ 'ตารางเวร' และ Sheet 'ตารางเวร-สำรอง'"
+                >
+                  <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>สำรอง Drive</span>
+                </button>
+              )}
             </>
-          )}
-
-          <button
-            onClick={onOpenShiftModal}
-            className="py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 font-medium text-xs rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
-            title="กำหนดและแก้ไขอัตราค่าเวร"
-          >
-            <DollarSign className="w-3.5 h-3.5 text-amber-600" />
-            <span>กำหนดค่าเวร</span>
-          </button>
-
-          {onClearSchedule && (
-            <button
-              onClick={() => {
-                if (currentUser?.isAdmin || currentUser?.isSubAdmin) {
-                  onClearSchedule();
-                } else {
-                  setPermissionNotice('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถล้างตารางเวรได้ กรุณาเข้าสู่ระบบ');
-                  setTimeout(() => setPermissionNotice(null), 4000);
-                }
-              }}
-              className="py-2 px-3 bg-white hover:bg-rose-50 text-stone-700 hover:text-rose-700 font-medium text-xs rounded-xl border border-stone-300 hover:border-rose-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
-              title="ล้างตารางเวรทั้งหมดของแผนกนี้ในเดือนนี้ให้เป็นตารางเปล่า"
-            >
-              <Eraser className="w-3.5 h-3.5 text-stone-500" />
-              <span>ล้างเป็นตารางเปล่า</span>
-            </button>
-          )}
-
-          {/* Google Drive & Sheet Backup Button */}
-          {onOpenGoogleDriveModal && (
-            <button
-              onClick={onOpenGoogleDriveModal}
-              className="py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-800 font-medium text-xs rounded-xl border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
-              title="สำรองข้อมูลตารางเวรไปยัง Google Drive โฟลเดอร์ 'ตารางเวร' และ Sheet 'ตารางเวร-สำรอง'"
-            >
-              <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-              <span>สำรอง Drive</span>
-            </button>
           )}
 
           {/* Download PDF Button */}
@@ -396,9 +478,175 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         </div>
       </div>
 
+      {/* Free Table Navigation & Quick Jump Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 sm:px-4 sm:py-2.5 bg-[#F8F1E5] rounded-2xl border-2 border-[#E7DFD5] shadow-[1px_2px_0px_rgba(70,60,50,0.08)]">
+        {/* Left: Pan Tool Toggle & Height Expand */}
+        <div className="flex items-center gap-2">
+          {/* Pan / Drag Tool Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsPanToolActive(!isPanToolActive)}
+            className={`py-1.5 px-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+              isPanToolActive
+                ? 'bg-amber-500 text-white border-amber-600 shadow-inner'
+                : 'bg-white hover:bg-stone-50 text-stone-700 border-stone-300'
+            }`}
+            title={
+              isPanToolActive
+                ? 'เปิดโหมดเลื่อนตารางอิสระอยู่: คลิกและลากเพื่อเลื่อนดูตารางได้ทุกทิศทาง (คลิกเพื่อกลับสู่โหมดแก้ไขเวร)'
+                : 'คลิกเพื่อเปิดโหมดเลื่อนตารางอิสระ (Hand Tool) เลื่อนดูตารางได้คล่องตัวไม่เผลอกดโดนเวร'
+            }
+          >
+            <Hand className="w-3.5 h-3.5" />
+            <span>{isPanToolActive ? 'โหมดเลื่อนอิสระ (เปิดอยู่)' : 'โหมดเลื่อนอิสระ'}</span>
+          </button>
+
+          {/* Expand Height Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsExpandedHeight(!isExpandedHeight)}
+            className="py-1.5 px-2.5 bg-white hover:bg-stone-50 text-stone-700 text-xs font-medium rounded-xl border border-stone-300 shadow-xs flex items-center gap-1 transition-all cursor-pointer"
+            title={isExpandedHeight ? 'ย่อความสูงตารางกลับขนาดมาตรฐาน' : 'ขยายความสูงตารางเพื่อดูรายชื่อได้เต็มตา'}
+          >
+            {isExpandedHeight ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 text-stone-600" />
+                <span className="hidden sm:inline">ความสูงปกติ</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 text-stone-600" />
+                <span className="hidden sm:inline">ขยายเต็มตา</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Center: Quick Range Jumpers (กระโดดไปยังช่วงวันที่) */}
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+          <span className="text-[11px] font-medium text-stone-600 mr-1 hidden md:inline">
+            เลื่อนด่วน:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => scrollToDay(1)}
+            className="px-2 py-1 bg-white hover:bg-amber-50 active:bg-amber-100 text-stone-700 text-[11px] font-medium rounded-lg border border-stone-300 transition-colors cursor-pointer"
+            title="เลื่อนไปต้นเดือน วันที่ 1"
+          >
+            วันที่ 1
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToDay(1)}
+            className="px-2 py-1 bg-white hover:bg-amber-50 active:bg-amber-100 text-stone-700 text-[11px] font-medium rounded-lg border border-stone-300 transition-colors cursor-pointer"
+            title="เลื่อนดูช่วงวันที่ 1 - 10"
+          >
+            1 - 10
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToDay(11)}
+            className="px-2 py-1 bg-white hover:bg-amber-50 active:bg-amber-100 text-stone-700 text-[11px] font-medium rounded-lg border border-stone-300 transition-colors cursor-pointer"
+            title="เลื่อนดูช่วงวันที่ 11 - 20"
+          >
+            11 - 20
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToDay(21)}
+            className="px-2 py-1 bg-white hover:bg-amber-50 active:bg-amber-100 text-stone-700 text-[11px] font-medium rounded-lg border border-stone-300 transition-colors cursor-pointer"
+            title="เลื่อนดูช่วงวันที่ 21 - สิ้นเดือน"
+          >
+            21 - {daysInMonth}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToDay(daysInMonth)}
+            className="px-2 py-1 bg-white hover:bg-amber-50 active:bg-amber-100 text-stone-700 text-[11px] font-medium rounded-lg border border-stone-300 transition-colors cursor-pointer"
+            title={`เลื่อนไปวันสิ้นเดือน (วันที่ ${daysInMonth})`}
+          >
+            สิ้นเดือน
+          </button>
+
+          {/* Today Button (Only if viewing current month) */}
+          {isCurrentMonth && (
+            <button
+              type="button"
+              onClick={() => scrollToDay(todayDay)}
+              className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold rounded-lg border border-amber-300 transition-colors cursor-pointer flex items-center gap-1 shadow-xs ml-1"
+              title={`เลื่อนไปดูเวรวันนี้ (วันที่ ${todayDay})`}
+            >
+              <Calendar className="w-3 h-3 text-amber-700" />
+              <span>วันนี้ ({todayDay})</span>
+            </button>
+          )}
+        </div>
+
+        {/* Right: Step Scroll Arrows & Visible Range Badge */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center bg-white rounded-xl border border-stone-300 shadow-xs p-0.5">
+            <button
+              type="button"
+              onClick={() => scrollByAmount(-240)}
+              className="p-1 hover:bg-stone-100 active:bg-stone-200 text-stone-700 rounded-lg transition-colors cursor-pointer"
+              title="เลื่อนตารางไปทางซ้าย"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollByAmount(240)}
+              className="p-1 hover:bg-stone-100 active:bg-stone-200 text-stone-700 rounded-lg transition-colors cursor-pointer"
+              title="เลื่อนตารางไปทางขวา"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          <span className="text-[11px] text-stone-600 font-mono hidden lg:inline px-2 py-1 bg-white/70 rounded-lg border border-[#E7DFD5]">
+            วันที่ {viewRange.startDay} - {viewRange.endDay} / {daysInMonth}
+          </span>
+        </div>
+      </div>
+
       {/* Main Schedule Table Wrapper */}
       <div className="relative bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[3px_4px_0px_rgba(70,60,50,0.12)] overflow-hidden">
-        <div className="overflow-x-auto max-h-[72vh]">
+        {/* Subtle indicator when dragging */}
+        {isPanning && (
+          <div className="absolute top-2 right-4 z-50 px-2.5 py-1 bg-amber-900/80 text-white text-[11px] rounded-lg backdrop-blur-xs shadow-md flex items-center gap-1.5 pointer-events-none animate-fadeIn">
+            <Move className="w-3 h-3 animate-spin" />
+            <span>กำลังเลื่อนตาราง...</span>
+          </div>
+        )}
+
+        <div
+          ref={tableContainerRef}
+          onScroll={handleScroll}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          className={`overflow-auto custom-scrollbar select-none overscroll-contain transition-[max-height] duration-200 ${
+            isExpandedHeight ? 'max-h-[86vh]' : 'max-h-[70vh]'
+          } ${
+            isPanToolActive
+              ? isPanning
+                ? 'cursor-grabbing'
+                : 'cursor-grab'
+              : isPanning
+              ? 'cursor-grabbing'
+              : 'cursor-default'
+          }`}
+          style={{
+            touchAction: 'pan-x pan-y',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           <table className="w-full text-xs border-collapse">
             {/* Header Row */}
             <thead className="bg-[#F5ECE0] text-stone-700 font-bold sticky top-0 z-30 border-b-2 border-[#DECFC0]">
@@ -431,15 +679,22 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 {daysArray.map((day) => {
                   const dow = getDayOfWeek(yearMonth, day);
                   const weekend = isWeekend(yearMonth, day);
+                  const isToday = isCurrentMonth && day === todayDay;
+
                   return (
                     <th
                       key={day}
-                      className={`py-2 px-1 text-center border-r border-[#DACBBA] min-w-[54px] w-14 font-mono ${
-                        weekend ? 'bg-[#EBDDC8] text-amber-950 font-bold' : ''
+                      className={`py-2 px-1 text-center border-r border-[#DACBBA] min-w-[54px] w-14 font-mono transition-colors ${
+                        isToday
+                          ? 'bg-amber-300/80 text-amber-950 font-bold border-b-2 border-amber-600'
+                          : weekend
+                          ? 'bg-[#EBDDC8] text-amber-950 font-bold'
+                          : ''
                       }`}
                     >
-                      <div className="text-[10px] text-stone-600 font-sans">
+                      <div className="text-[10px] text-stone-600 font-sans flex items-center justify-center gap-0.5">
                         {THAI_DAYS_SHORT[dow]}
+                        {isToday && <span className="text-[9px] text-amber-800 font-bold">★</span>}
                       </div>
                       <div className="text-sm font-bold text-stone-800">{day}</div>
                     </th>
@@ -541,18 +796,20 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                   ล้างเวรออก (Clear)
                 </button>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCell(null);
-                      onOpenShiftModal();
-                    }}
-                    className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
-                    title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
-                  >
-                    <DollarSign className="w-3 h-3 text-amber-600" />
-                    <span>กำหนดค่าเวร</span>
-                  </button>
+                  {(currentUser?.isAdmin || currentUser?.isSubAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCell(null);
+                        onOpenShiftModal();
+                      }}
+                      className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
+                      title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
+                    >
+                      <DollarSign className="w-3 h-3 text-amber-600" />
+                      <span>กำหนดค่าเวร</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setSelectedCell(null)}

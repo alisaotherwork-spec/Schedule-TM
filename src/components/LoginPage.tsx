@@ -44,18 +44,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const cleanName = englishName.trim();
   const inputLower = cleanName.toLowerCase();
 
-  // Filter staff suggestions for quick selection (active staff only)
-  const matchingSuggestions = cleanName.length >= 2
-    ? staffList
-        .filter((s) => s.isActive)
-        .filter((s) => {
-          const sEng = s.englishName.toLowerCase();
-          const sThai = s.thaiName;
-          return sEng.includes(inputLower) || sThai.includes(cleanName);
-        })
-        .slice(0, 5)
-    : [];
-
   // Helper to find staff by input name
   const findStaffByInput = (input: string) => {
     const trimmed = input.trim();
@@ -113,7 +101,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     // Check staff in list
     const matched = findStaffByInput(targetName);
     if (!matched) {
-      setError(`ไม่พบรายชื่อ "${targetName}" ในระบบ กรุณาตรวจสอบการสะกดชื่อ หรือเลือกจากรายชื่อด้านล่าง`);
+      setError(`ไม่พบรายชื่อ "${targetName}" ในระบบ กรุณาตรวจสอบการสะกดชื่อ-สกุล หรือชื่อภาษาอังกฤษ`);
       nameInputRef.current?.focus();
       return;
     }
@@ -269,8 +257,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </h1>
             <p className="text-xs text-stone-500 mt-1">
               {step === 'name'
-                ? 'กรอกชื่อ-สกุล หรือชื่อภาษาอังกฤษของคุณ (พิมพ์ให้เสร็จแล้วกดถัดไป)'
-                : 'ยืนยันรหัสผ่านสำหรับผู้ดูแลระบบ'}
+                ? 'กรุณากรอกชื่อ-สกุล หรือชื่อภาษาอังกฤษเพื่อเข้าสู่ระบบ'
+                : 'กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ'}
             </p>
           </div>
 
@@ -306,61 +294,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         handleProceedName();
                       }
                     }}
-                    placeholder="พิมพ์ชื่อจริง หรือชื่อเล่นภาษาอังกฤษ เช่น alisa..."
+                    placeholder="พิมพ์ชื่อจริง หรือชื่อภาษาอังกฤษ..."
                     className="w-full px-4 py-2.5 text-sm bg-white border-2 border-[#E3D9CC] rounded-xl focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all font-medium text-stone-800 placeholder:text-stone-400"
                     autoFocus
                     required
                   />
-                </div>
-
-                {/* Autocomplete / Suggested Matching Staff */}
-                {matchingSuggestions.length > 0 && (
-                  <div className="mt-2 p-2 bg-[#FAF5EB] border border-[#E3D7C5] rounded-xl">
-                    <span className="text-[11px] font-semibold text-stone-600 block mb-1">
-                      เลือกจากรายชื่อที่ตรงกัน:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {matchingSuggestions.map((staff) => (
-                        <button
-                          key={staff.id}
-                          type="button"
-                          onClick={() => {
-                            setEnglishName(staff.thaiName);
-                            handleProceedName(staff.thaiName);
-                          }}
-                          className="px-2.5 py-1 text-xs bg-white hover:bg-amber-100 text-stone-800 font-medium rounded-lg border border-[#DACFBF] shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>{staff.thaiName}</span>
-                          <span className="text-[10px] text-stone-500">(@{staff.englishName})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Dropdown Quick Select option */}
-                <div className="mt-2 flex items-center justify-between text-[11px] text-stone-500">
-                  <span>หรือเลือกจากรายชื่อ:</span>
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setEnglishName(e.target.value);
-                        handleProceedName(e.target.value);
-                      }
-                    }}
-                    className="text-xs bg-[#FAF5EC] border border-[#E0D5C5] rounded-lg px-2 py-1 text-stone-700 font-medium focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="">-- เลือกลงชื่อจากรายชื่อเจ้าหน้าที่ --</option>
-                    <option value="alisa">ทนพญ.อลิษา แก่นบำรุง (alisa - ผู้ดูแลระบบสูงสุด)</option>
-                    {staffList
-                      .filter((s) => s.isActive)
-                      .map((s) => (
-                        <option key={s.id} value={s.thaiName}>
-                          {s.thaiName} ({s.position}) {s.role === 'sub_admin' ? '[ผู้ดูแลระบบย่อย]' : ''}
-                        </option>
-                      ))}
-                  </select>
                 </div>
               </div>
 
@@ -398,8 +336,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <div className="text-xs font-bold text-stone-800">
                       {isAlisaAdmin ? 'ทนพญ.อลิษา แก่นบำรุง' : confirmedStaff?.thaiName}
                     </div>
-                    <div className={`text-[11px] font-semibold ${isAlisaAdmin ? 'text-amber-800' : 'text-indigo-800'}`}>
-                      {isAlisaAdmin ? '👑 ผู้ดูแลระบบสูงสุด (Super Admin)' : '🛡️ ผู้ดูแลระบบย่อย (Sub-Admin)'}
+                    <div className="text-[11px] font-medium text-stone-500">
+                      {confirmedStaff?.position || 'งานเวชศาสตร์บริการโลหิต'}
                     </div>
                   </div>
                 </div>
@@ -440,7 +378,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     setPassword(e.target.value);
                     setError('');
                   }}
-                  placeholder={isAlisaAdmin ? 'กรอกรหัสผ่านผู้ดูแลระบบสูงสุด (1450)' : 'กรอกรหัสผ่านผู้ดูแลระบบย่อย'}
+                  placeholder="กรอกรหัสผ่านเพื่อเข้าสู่ระบบ"
                   className="w-full px-4 py-2.5 text-sm bg-white border-2 border-[#DACFBF] rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-2 focus:ring-amber-200 font-medium text-stone-800"
                   autoFocus
                   required

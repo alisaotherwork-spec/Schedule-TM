@@ -62,18 +62,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const cleanName = englishName.trim();
   const inputLower = cleanName.toLowerCase();
 
-  // Suggestions while typing name (at least 2 letters)
-  const matchingSuggestions = cleanName.length >= 2
-    ? staffList
-        .filter((s) => s.isActive)
-        .filter((s) => {
-          const sEng = s.englishName.toLowerCase();
-          const sThai = s.thaiName;
-          return sEng.includes(inputLower) || sThai.includes(cleanName);
-        })
-        .slice(0, 4)
-    : [];
-
   // Helper to find staff
   const findStaffByInput = (input: string) => {
     const trimmed = input.trim();
@@ -131,7 +119,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     // Check staff in list
     const matched = findStaffByInput(targetName);
     if (!matched) {
-      setError(`ไม่พบรายชื่อ "${targetName}" ในระบบ กรุณาตรวจสอบการสะกดชื่อ หรือเลือกจากรายชื่อด้านล่าง`);
+      setError(`ไม่พบรายชื่อ "${targetName}" ในระบบ กรุณาตรวจสอบการสะกดชื่อ-สกุล หรือชื่อภาษาอังกฤษ`);
       nameInputRef.current?.focus();
       return;
     }
@@ -262,7 +250,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               เข้าสู่ระบบจัดตารางเวร
             </h2>
             <p className="text-xs text-stone-500">
-              {step === 'name' ? 'กรอกชื่อของคุณเพื่อเข้าสู่ระบบ' : 'ยืนยันรหัสผ่านผู้ดูแลระบบ'}
+              {step === 'name' ? 'กรุณากรอกชื่อของคุณเพื่อเข้าสู่ระบบ' : 'กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ'}
             </p>
           </div>
         </div>
@@ -303,55 +291,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 required
               />
 
-              {/* Suggestions */}
-              {matchingSuggestions.length > 0 && (
-                <div className="mt-2 p-2 bg-[#FAF5EB] border border-[#E3D7C5] rounded-xl">
-                  <span className="text-[10px] font-semibold text-stone-600 block mb-1">
-                    คลิกเพื่อเลือกชื่อ:
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {matchingSuggestions.map((staff) => (
-                      <button
-                        key={staff.id}
-                        type="button"
-                        onClick={() => {
-                          setEnglishName(staff.thaiName);
-                          handleProceedName(staff.thaiName);
-                        }}
-                        className="px-2 py-0.5 text-xs bg-white hover:bg-amber-100 text-stone-800 rounded-lg border border-[#DACFBF] shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>{staff.thaiName}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Select Dropdown */}
-              <div className="mt-2 flex items-center justify-between text-[11px] text-stone-500">
-                <span>หรือเลือกจากรายชื่อ:</span>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setEnglishName(e.target.value);
-                      handleProceedName(e.target.value);
-                    }
-                  }}
-                  className="text-xs bg-[#FAF5EC] border border-[#E0D5C5] rounded-lg px-2 py-1 text-stone-700 font-medium focus:outline-hidden cursor-pointer max-w-[210px] truncate"
-                >
-                  <option value="">-- เลือกลงชื่อจากรายชื่อ --</option>
-                  <option value="alisa">ทนพญ.อลิษา แก่นบำรุง (alisa)</option>
-                  {staffList
-                    .filter((s) => s.isActive)
-                    .map((s) => (
-                      <option key={s.id} value={s.thaiName}>
-                        {s.thaiName} {s.role === 'sub_admin' ? '[ผู้ดูแลระบบย่อย]' : ''}
-                      </option>
-                    ))}
-                </select>
               </div>
-            </div>
 
             {error && (
               <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700 animate-fadeIn">
@@ -383,8 +323,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <div className="text-xs font-bold text-stone-800">
                     {isAlisaAdmin ? 'ทนพญ.อลิษา แก่นบำรุง' : confirmedStaff?.thaiName}
                   </div>
-                  <div className={`text-[10px] font-semibold ${isAlisaAdmin ? 'text-amber-800' : 'text-indigo-800'}`}>
-                    {isAlisaAdmin ? '👑 ผู้ดูแลระบบสูงสุด (Super Admin)' : '🛡️ ผู้ดูแลระบบย่อย (Sub-Admin)'}
+                  <div className="text-[10px] font-medium text-stone-500">
+                    {confirmedStaff?.position || 'งานเวชศาสตร์บริการโลหิต'}
                   </div>
                 </div>
               </div>
@@ -421,7 +361,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   setPassword(e.target.value);
                   setError('');
                 }}
-                placeholder={isAlisaAdmin ? 'กรอกรหัสผ่านผู้ดูแลระบบสูงสุด (1450)' : 'กรอกรหัสผ่านผู้ดูแลระบบย่อย'}
+                placeholder="กรอกรหัสผ่านเพื่อเข้าสู่ระบบ"
                 className="w-full px-3 py-2 text-sm bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-600 focus:ring-1 focus:ring-amber-300 font-medium text-stone-800"
                 autoFocus
                 required
@@ -464,12 +404,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           />
         )}
 
-        {/* Permissions note */}
-        <div className="mt-4 pt-3 border-t border-[#EFE7DC] text-[10px] text-stone-500 text-center leading-relaxed">
-          • <strong>alisa</strong>: ผู้ดูแลระบบสูงสุด (จัดการทุกเวรและกำหนดผู้ดูแลระบบย่อย)
-          <br />• <strong>ผู้ดูแลระบบย่อย</strong>: จัดการเจ้าหน้าที่และแก้ไขค่าเวรได้
-          <br />• <strong>เจ้าหน้าที่ทั่วไป</strong>: บันทึกเวรได้ทันทีไม่ต้องใส่รหัสผ่าน
-        </div>
       </div>
     </div>
   );

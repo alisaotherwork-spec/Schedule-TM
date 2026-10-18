@@ -90,6 +90,14 @@ export default function App() {
     }
   });
 
+  // Guard: non-admin users (general staff & guests) can ONLY view the schedule tabs ('lab' or 'donor')
+  useEffect(() => {
+    const hasAdminAccess = currentUser?.isAdmin || currentUser?.isSubAdmin;
+    if (!hasAdminAccess && activeTab !== 'lab' && activeTab !== 'donor') {
+      setActiveTab('lab');
+    }
+  }, [currentUser, activeTab]);
+
   // Data States with robust local fallbacks
   const [staffList, setStaffList] = useState<Staff[]>(() => {
     try {
@@ -205,65 +213,41 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Helper to detect old dummy placeholder schedule
-  const isLegacyDummySchedule = (sched: MonthSchedule | null) => {
-    if (!sched || !sched.assignments) return false;
-    return sched.updatedBy === 'alisa (System Admin)';
-  };
-
-  // Sync with Firestore for Lab Schedule (starts as blank schedule for new months)
+  // Sync with Firestore for Lab Schedule (safely preserves existing schedules)
   useEffect(() => {
+    // 1. Immediately load existing local copy if available
     try {
       const saved = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
       if (saved) {
         const parsed: MonthSchedule = JSON.parse(saved);
-        // If not October 2026 and it has legacy dummy schedule, replace with blank schedule
-        if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
-          const blank = generateInitialSchedule('lab', yearMonth);
-          setLabSchedule(blank);
-          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(blank));
-        } else {
-          setLabSchedule(parsed);
-        }
+        setLabSchedule(parsed);
       } else {
         const initial = generateInitialSchedule('lab', yearMonth);
         setLabSchedule(initial);
       }
     } catch {}
 
+    // 2. Subscribe to Firestore
     const unsubscribe = subscribeSchedule(
       'lab',
       yearMonth,
       (sched) => {
         if (sched && sched.assignments) {
-          // If not October 2026 and it has legacy dummy schedule, replace with blank schedule
-          if (yearMonth !== '2026-10' && isLegacyDummySchedule(sched)) {
-            const blank = generateInitialSchedule('lab', yearMonth);
-            setLabSchedule(blank);
-            localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(blank));
-            saveSchedule(blank).catch(console.warn);
-          } else {
-            setLabSchedule(sched);
-            localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(sched));
-          }
+          // Firestore has existing schedule: keep it and never overwrite!
+          setLabSchedule(sched);
+          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(sched));
         } else {
+          // If not in Firestore yet, check localStorage to see if user has arranged schedule
           const cached = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
-              if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
-                const blank = generateInitialSchedule('lab', yearMonth);
-                setLabSchedule(blank);
-                localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(blank));
-                saveSchedule(blank).catch(console.warn);
-                return;
-              }
               setLabSchedule(parsed);
               saveSchedule(parsed).catch(console.warn);
               return;
             } catch {}
           }
-          // New month: start with blank schedule
+          // Only if completely new and unscheduled, initialize as blank schedule
           const initial = generateInitialSchedule('lab', yearMonth);
           setLabSchedule(initial);
           localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(initial));
@@ -275,57 +259,41 @@ export default function App() {
     return () => unsubscribe();
   }, [yearMonth]);
 
-  // Sync with Firestore for Donor Schedule (starts as blank schedule for new months)
+  // Sync with Firestore for Donor Schedule (safely preserves existing schedules)
   useEffect(() => {
+    // 1. Immediately load existing local copy if available
     try {
       const saved = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
       if (saved) {
         const parsed: MonthSchedule = JSON.parse(saved);
-        if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
-          const blank = generateInitialSchedule('donor', yearMonth);
-          setDonorSchedule(blank);
-          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(blank));
-        } else {
-          setDonorSchedule(parsed);
-        }
+        setDonorSchedule(parsed);
       } else {
         const initial = generateInitialSchedule('donor', yearMonth);
         setDonorSchedule(initial);
       }
     } catch {}
 
+    // 2. Subscribe to Firestore
     const unsubscribe = subscribeSchedule(
       'donor',
       yearMonth,
       (sched) => {
         if (sched && sched.assignments) {
-          if (yearMonth !== '2026-10' && isLegacyDummySchedule(sched)) {
-            const blank = generateInitialSchedule('donor', yearMonth);
-            setDonorSchedule(blank);
-            localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(blank));
-            saveSchedule(blank).catch(console.warn);
-          } else {
-            setDonorSchedule(sched);
-            localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(sched));
-          }
+          // Firestore has existing schedule: keep it and never overwrite!
+          setDonorSchedule(sched);
+          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(sched));
         } else {
+          // If not in Firestore yet, check localStorage to see if user has arranged schedule
           const cached = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
-              if (yearMonth !== '2026-10' && isLegacyDummySchedule(parsed)) {
-                const blank = generateInitialSchedule('donor', yearMonth);
-                setDonorSchedule(blank);
-                localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(blank));
-                saveSchedule(blank).catch(console.warn);
-                return;
-              }
               setDonorSchedule(parsed);
               saveSchedule(parsed).catch(console.warn);
               return;
             } catch {}
           }
-          // New month: start with blank schedule
+          // Only if completely new and unscheduled, initialize as blank schedule
           const initial = generateInitialSchedule('donor', yearMonth);
           setDonorSchedule(initial);
           localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(initial));
@@ -720,8 +688,8 @@ export default function App() {
           />
         )}
 
-        {/* 3. Daily Duty Summary Tab (6 columns) */}
-        {activeTab === 'daily_summary' && (
+        {/* 3. Daily Duty Summary Tab (6 columns - Admin / Sub-Admin Only) */}
+        {activeTab === 'daily_summary' && (currentUser?.isAdmin || currentUser?.isSubAdmin) && (
           <DailySummaryView
             yearMonth={yearMonth}
             staffList={staffList}
@@ -731,8 +699,8 @@ export default function App() {
           />
         )}
 
-        {/* 4. Overtime (OT) Compensation Claim Sheet Tab (4 columns) */}
-        {activeTab === 'ot_claim' && (
+        {/* 4. Overtime (OT) Compensation Claim Sheet Tab (4 columns - Admin / Sub-Admin Only) */}
+        {activeTab === 'ot_claim' && (currentUser?.isAdmin || currentUser?.isSubAdmin) && (
           <OtClaimView
             yearMonth={yearMonth}
             staffList={staffList}

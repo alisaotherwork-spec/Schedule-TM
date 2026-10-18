@@ -527,7 +527,7 @@ export const DailySummaryView: React.FC<DailySummaryViewProps> = ({
 
       {/* Interactive Display Table */}
       <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[3px_4px_0px_rgba(70,60,50,0.12)] overflow-hidden">
-        <div className="overflow-x-auto max-h-[70vh]">
+        <div className="overflow-auto custom-scrollbar max-h-[74vh] overscroll-contain">
           <table className="w-full text-xs border-collapse">
             <thead className="bg-[#F5ECE0] text-stone-800 font-bold sticky top-0 z-20 border-b-2 border-[#DECFC0]">
               <tr>

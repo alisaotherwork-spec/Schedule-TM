@@ -8,6 +8,36 @@
   }
 }
 
+/* Custom Elegant Smooth Scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #D8C7B0 #F5ECE0;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #F5ECE0;
+  border-radius: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #D8C7B0;
+  border-radius: 8px;
+  border: 2px solid #F5ECE0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #BFA88D;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #A38B70;
+}
+
 @media print {
   body {
     background-color: #ffffff !important;

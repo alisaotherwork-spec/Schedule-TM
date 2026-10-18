@@ -307,8 +307,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>ห้องรับบริจาคโลหิต</span>
           </button>
 
-          {/* 3. ใบสรุปเวรประจำวัน (Visible if Super Admin or Sub-Admin) */}
-          {(!currentUser || hasManagementAccess) && (
+          {/* 3. ใบสรุปเวรประจำวัน (Visible ONLY if Super Admin or Sub-Admin) */}
+          {hasManagementAccess && (
             <button
               onClick={() => onSelectTab('daily_summary')}
               className={`py-2 px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
@@ -322,21 +322,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* 4. ใบเบิกเงินค่าตอบแทน OT */}
-          <button
-            onClick={() => onSelectTab('ot_claim')}
-            className={`py-2 px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-              activeTab === 'ot_claim'
-                ? 'bg-[#F28C38] text-white border-[#D56B16] shadow-[2px_2px_0px_rgba(70,60,50,0.15)]'
-                : 'bg-white text-stone-700 border-stone-200 hover:bg-[#FAF4EA]'
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>ใบเบิกเงินค่าตอบแทน OT (4 คอลัมน์)</span>
-          </button>
+          {/* 4. ใบเบิกเงินค่าตอบแทน OT (Visible ONLY if Super Admin or Sub-Admin) */}
+          {hasManagementAccess && (
+            <button
+              onClick={() => onSelectTab('ot_claim')}
+              className={`py-2 px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                activeTab === 'ot_claim'
+                  ? 'bg-[#F28C38] text-white border-[#D56B16] shadow-[2px_2px_0px_rgba(70,60,50,0.15)]'
+                  : 'bg-white text-stone-700 border-stone-200 hover:bg-[#FAF4EA]'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>ใบเบิกเงินค่าตอบแทน OT (4 คอลัมน์)</span>
+            </button>
+          )}
 
-          {/* Quick Configure Shift Rates Button */}
-          {onOpenShiftModal && (
+          {/* Quick Configure Shift Rates Button (Visible ONLY if Super Admin or Sub-Admin) */}
+          {hasManagementAccess && onOpenShiftModal && (
             <button
               onClick={onOpenShiftModal}
               className="py-2 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 shadow-xs"
@@ -350,7 +352,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right side controls: Google Drive Sync and Month Indicator */}
         <div className="flex items-center gap-3 text-xs font-medium text-stone-500 shrink-0">
-          {onOpenGoogleDriveModal && (
+          {hasManagementAccess && onOpenGoogleDriveModal && (
             <button
               onClick={onOpenGoogleDriveModal}
               className="py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50/90 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] shrink-0"
@@ -387,7 +389,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </p>
             </div>
           )}
-          {onOpenGoogleDriveModal && (
+          {hasManagementAccess && onOpenGoogleDriveModal && (
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
@@ -421,26 +423,28 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               ห้องรับบริจาค
             </button>
-            {(!currentUser || isSuperAdmin) && (
-              <button
-                onClick={() => {
-                  onSelectTab('daily_summary');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="p-2 bg-white rounded-lg border text-center font-medium"
-              >
-                ใบสรุปเวรประจำวัน
-              </button>
+            {hasManagementAccess && (
+              <>
+                <button
+                  onClick={() => {
+                    onSelectTab('daily_summary');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="p-2 bg-white rounded-lg border text-center font-medium"
+                >
+                  ใบสรุปเวรประจำวัน
+                </button>
+                <button
+                  onClick={() => {
+                    onSelectTab('ot_claim');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="p-2 bg-white rounded-lg border text-center font-medium"
+                >
+                  ใบเบิกเงิน OT
+                </button>
+              </>
             )}
-            <button
-              onClick={() => {
-                onSelectTab('ot_claim');
-                setIsMobileMenuOpen(false);
-              }}
-              className="p-2 bg-white rounded-lg border text-center font-medium"
-            >
-              ใบเบิกเงิน OT
-            </button>
           </div>
         </div>
       )}
