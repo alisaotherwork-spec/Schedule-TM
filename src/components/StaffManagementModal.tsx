@@ -6,6 +6,7 @@ import { CuteAlien, PaperStar } from './CuteSpaceDecorations';
 
 interface StaffManagementModalProps {
   isOpen: boolean;
+  isPageMode?: boolean;
   onClose: () => void;
   staffList: Staff[];
   currentUser: UserSession | null;
@@ -17,8 +18,9 @@ interface StaffManagementModalProps {
 
 export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   isOpen,
+  isPageMode = false,
   onClose,
-  staffList,
+  staffList = [],
   currentUser,
   onSaveStaff,
   onDeleteStaff,
@@ -41,8 +43,9 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isSuperAdmin = currentUser?.isAdmin;
-  const sortedStaff = [...staffList].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  const isSuperAdmin = Boolean(currentUser?.isAdmin);
+  const safeStaffList = (staffList || []).filter((s): s is Staff => Boolean(s && s.id));
+  const sortedStaff = [...safeStaffList].sort((a, b) => ((a?.order ?? 999) - (b?.order ?? 999)));
 
   const handleStartAdd = () => {
     setEditingStaff({
@@ -85,7 +88,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   };
 
   const handleSelectStandardPosition = (abbr: PositionAbbr) => {
-    const config = STANDARD_POSITIONS[abbr];
+    const config = STANDARD_POSITIONS[abbr] || STANDARD_POSITIONS.MT;
     setPositionAbbr(abbr);
     setPosition(config.thaiTitle);
     setCategory(config.category);
@@ -136,7 +139,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
       let mustChangePassword = editingStaff?.mustChangePassword;
 
       if (isSuperAdmin) {
-        if (editingStaff?.englishName.toLowerCase() === 'alisa') {
+        if ((editingStaff?.englishName || '').trim().toLowerCase() === 'alisa') {
           role = 'super_admin';
         } else {
           if (isSubAdminRole) {
@@ -155,12 +158,13 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
         mustChangePassword = editingStaff?.mustChangePassword;
       }
 
+      const defaultThaiTitle = (STANDARD_POSITIONS[positionAbbr] || STANDARD_POSITIONS.MT).thaiTitle;
       const staffToSave: Staff = {
         id: editingStaff?.id || `staff-${Date.now()}`,
         thaiName: thaiName.trim(),
         englishName: englishName.trim(),
         category,
-        position: position.trim() || STANDARD_POSITIONS[positionAbbr].thaiTitle,
+        position: position.trim() || defaultThaiTitle,
         positionAbbr,
         room,
         order: editingStaff?.order || staffList.length + 1,
@@ -236,16 +240,23 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[4px_6px_0px_rgba(70,60,50,0.18)] p-6 overflow-hidden flex flex-col">
-        {/* Close Button */}
+  const content = (
+    <div
+      className={`bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[2px_3px_0px_rgba(70,60,50,0.12)] p-4 sm:p-6 flex flex-col ${
+        isPageMode
+          ? 'w-full max-w-5xl mx-auto'
+          : 'relative w-full max-w-3xl max-h-[90vh] overflow-hidden'
+      }`}
+    >
+      {/* Close Button (Only show in modal mode) */}
+      {!isPageMode && (
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-[#F3ECE0] transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
+      )}
 
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[#EFE7DC] shrink-0">
@@ -421,7 +432,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
             </div>
 
             {/* Sub-Admin Role Assignment (Only Super Admin can assign/revoke) */}
-            {isSuperAdmin && editingStaff.englishName.toLowerCase() !== 'alisa' && (
+            {isSuperAdmin && (editingStaff?.englishName || '').trim().toLowerCase() !== 'alisa' && (
               <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-1">
                 <div className="flex items-center gap-2">
                   <input
@@ -477,7 +488,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
         {/* Staff Table List */}
         <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-4">
           {(['technologist', 'assistant', 'part_time'] as StaffCategory[]).map((cat) => {
-            const list = staffList.filter((s) => s.category === cat);
+            const list = safeStaffList.filter((s) => s && s.category === cat);
             return (
               <div key={cat} className="border border-[#E7DFD5] rounded-xl overflow-hidden bg-white">
                 <div className="px-3.5 py-2 bg-[#F7F2EA] border-b border-[#E7DFD5] flex items-center justify-between">
@@ -490,10 +501,10 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                     <div className="p-3 text-xs text-stone-400 text-center">ไม่มีรายชื่อในหมวดนี้</div>
                   ) : (
                     list.map((staff) => {
-                      const isSuper = staff.englishName.toLowerCase() === 'alisa';
-                      const isSub = staff.role === 'sub_admin';
+                      const isSuper = (staff?.englishName || '').trim().toLowerCase() === 'alisa';
+                      const isSub = staff?.role === 'sub_admin';
                       const abbr = getStaffPositionAbbr(staff);
-                      const posCfg = STANDARD_POSITIONS[abbr];
+                      const posCfg = STANDARD_POSITIONS[abbr] || STANDARD_POSITIONS.MT;
                       const globalIdx = sortedStaff.findIndex((s) => s.id === staff.id);
                       const isFirst = globalIdx === 0;
                       const isLast = globalIdx === sortedStaff.length - 1;
@@ -665,6 +676,15 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
           </div>
         )}
       </div>
+    );
+
+  if (isPageMode) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
+      {content}
     </div>
   );
 };

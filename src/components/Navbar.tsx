@@ -22,6 +22,7 @@ import {
   Menu,
   X,
   Cloud,
+  UserCheck,
 } from 'lucide-react';
 import {
   CuteAlien,
@@ -34,7 +35,7 @@ import {
   PaperSaturn,
 } from './CuteSpaceDecorations';
 
-export type ActiveTab = 'lab' | 'donor' | 'daily_summary' | 'ot_claim';
+export type ActiveTab = 'lab' | 'donor' | 'daily_summary' | 'ot_claim' | 'staff' | 'shifts';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -44,6 +45,7 @@ interface NavbarProps {
   currentUser: UserSession | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onOpenStaffModal?: () => void;
   onOpenShiftModal?: () => void;
   onOpenGoogleDriveModal?: () => void;
   isGoogleDriveConnected?: boolean;
@@ -57,6 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenLogin,
   onLogout,
+  onOpenStaffModal,
   onOpenShiftModal,
   onOpenGoogleDriveModal,
   isGoogleDriveConnected,
@@ -337,14 +340,34 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Quick Configure Shift Rates Button (Visible ONLY if Super Admin or Sub-Admin) */}
-          {hasManagementAccess && onOpenShiftModal && (
+          {/* 5. จัดการเจ้าหน้าที่ (Visible ONLY if Super Admin or Sub-Admin) */}
+          {hasManagementAccess && (
             <button
-              onClick={onOpenShiftModal}
-              className="py-2 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 shadow-xs"
+              onClick={() => onSelectTab('staff')}
+              className={`py-2 px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                activeTab === 'staff'
+                  ? 'bg-[#F28C38] text-white border-[#D56B16] shadow-[2px_2px_0px_rgba(70,60,50,0.15)]'
+                  : 'bg-white text-stone-700 border-stone-200 hover:bg-[#FAF4EA]'
+              }`}
+              title="จัดการรายชื่อเจ้าหน้าที่ เพิ่ม ลบ แก้ไข"
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>จัดการเจ้าหน้าที่</span>
+            </button>
+          )}
+
+          {/* 6. กำหนดค่าเวร (Visible ONLY if Super Admin or Sub-Admin) */}
+          {hasManagementAccess && (
+            <button
+              onClick={() => onSelectTab('shifts')}
+              className={`py-2 px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                activeTab === 'shifts'
+                  ? 'bg-[#F28C38] text-white border-[#D56B16] shadow-[2px_2px_0px_rgba(70,60,50,0.15)]'
+                  : 'bg-white text-stone-700 border-stone-200 hover:bg-[#FAF4EA]'
+              }`}
               title="กำหนดและแก้ไขอัตราค่าตอบแทนเวร"
             >
-              <DollarSign className="w-3.5 h-3.5 text-amber-700" />
+              <DollarSign className="w-4 h-4" />
               <span>กำหนดค่าเวร</span>
             </button>
           )}
@@ -442,6 +465,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="p-2 bg-white rounded-lg border text-center font-medium"
                 >
                   ใบเบิกเงิน OT
+                </button>
+                <button
+                  onClick={() => {
+                    onSelectTab('staff');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="p-2 bg-white rounded-lg border text-center font-medium text-stone-700 flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-stone-600" />
+                  <span>จัดการเจ้าหน้าที่</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onSelectTab('shifts');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-center font-medium text-amber-900 flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-amber-700" />
+                  <span>กำหนดค่าเวร</span>
                 </button>
               </>
             )}

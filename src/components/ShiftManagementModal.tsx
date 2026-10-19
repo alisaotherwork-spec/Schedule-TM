@@ -6,6 +6,7 @@ import { CuteAlien, PaperStar } from './CuteSpaceDecorations';
 
 interface ShiftManagementModalProps {
   isOpen: boolean;
+  isPageMode?: boolean;
   onClose: () => void;
   shiftTypes: ShiftType[];
   onSaveShiftType: (shift: ShiftType) => Promise<void>;
@@ -35,11 +36,13 @@ export const COMMON_RATE_PRESETS = [0, 300, 450, 500, 550, 600, 650, 700, 750, 8
 
 export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   isOpen,
+  isPageMode = false,
   onClose,
-  shiftTypes,
+  shiftTypes = [],
   onSaveShiftType,
   onDeleteShiftType,
 }) => {
+  const safeShiftTypes = (shiftTypes || []).filter((s): s is ShiftType => Boolean(s && s.id));
   const [editingShift, setEditingShift] = useState<ShiftType | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -253,16 +256,23 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[4px_6px_0px_rgba(70,60,50,0.18)] p-6 overflow-hidden flex flex-col">
-        {/* Close Button */}
+  const content = (
+    <div
+      className={`bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-[2px_3px_0px_rgba(70,60,50,0.12)] p-4 sm:p-6 flex flex-col ${
+        isPageMode
+          ? 'w-full max-w-6xl mx-auto'
+          : 'relative w-full max-w-4xl max-h-[92vh] overflow-hidden'
+      }`}
+    >
+      {/* Close Button (Only show in modal mode) */}
+      {!isPageMode && (
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-[#F3ECE0] transition-colors"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-[#F3ECE0] transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
+      )}
 
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[#EFE7DC] shrink-0">
@@ -589,10 +599,10 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                     : 'bg-white text-stone-600 border border-[#E0D5C3] hover:bg-stone-50'
                 }`}
               >
-                ทั้งหมด ({shiftTypes.length})
+                ทั้งหมด ({safeShiftTypes.length})
               </button>
               {(['MT', 'AMT', 'Office', 'Service'] as PositionAbbr[]).map((pos) => {
-                const count = shiftTypes.filter((st) => {
+                const count = safeShiftTypes.filter((st) => {
                   const allowed = st.allowedPositions && st.allowedPositions.length > 0 ? st.allowedPositions : ALL_POSITION_ABBRS;
                   return allowed.includes(pos);
                 }).length;
@@ -620,7 +630,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                     : 'bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50'
                 }`}
               >
-                มีค่าเวร ({shiftTypes.filter((s) => s.rate > 0).length})
+                มีค่าเวร ({safeShiftTypes.filter((s) => (Number(s.rate) || 0) > 0).length})
               </button>
               <button
                 type="button"
@@ -631,7 +641,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                     : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
                 }`}
               >
-                0 ฿ ({shiftTypes.filter((s) => !s.rate).length})
+                0 ฿ ({safeShiftTypes.filter((s) => !(Number(s.rate) || 0)).length})
               </button>
             </div>
 
@@ -662,16 +672,17 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {(() => {
-                  const filtered = shiftTypes.filter((st) => {
+                  const filtered = safeShiftTypes.filter((st) => {
+                    if (!st) return false;
                     if (searchFilter.trim()) {
                       const q = searchFilter.trim().toLowerCase();
-                      const matchCode = st.code.toLowerCase().includes(q);
-                      const matchName = st.name.toLowerCase().includes(q);
+                      const matchCode = (st.code || '').toLowerCase().includes(q);
+                      const matchName = (st.name || '').toLowerCase().includes(q);
                       const matchTime = (st.timeRange || '').toLowerCase().includes(q);
                       if (!matchCode && !matchName && !matchTime) return false;
                     }
-                    if (categoryFilter === 'paid') return (st.rate || 0) > 0;
-                    if (categoryFilter === 'free') return (st.rate || 0) === 0;
+                    if (categoryFilter === 'paid') return (Number(st.rate) || 0) > 0;
+                    if (categoryFilter === 'free') return !(Number(st.rate) || 0);
                     if (categoryFilter !== 'all') {
                       const allowed = st.allowedPositions && st.allowedPositions.length > 0 ? st.allowedPositions : ALL_POSITION_ABBRS;
                       if (!allowed.includes(categoryFilter)) return false;
@@ -860,6 +871,15 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
           </div>
         )}
       </div>
+    );
+
+  if (isPageMode) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
+      {content}
     </div>
   );
 };

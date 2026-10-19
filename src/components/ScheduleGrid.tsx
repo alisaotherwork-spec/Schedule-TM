@@ -349,22 +349,15 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Staff Management & Shift Rate Configuration - ONLY visible to Admin / Sub-Admin */}
           {(currentUser?.isAdmin || currentUser?.isSubAdmin) && (
             <>
               <button
-                onClick={onOpenAutoSchedule}
-                className="py-2 px-3.5 bg-[#4ADE80] hover:bg-[#22C55E] text-stone-900 font-bold text-xs rounded-xl border border-[#16A34A] shadow-[1px_2px_0px_rgba(70,60,50,0.12)] flex items-center gap-1.5 transition-all cursor-pointer"
-                title="จัดเวรอัตโนมัติ (หมุนเวียนต่อจากคนที่ 1 ของแต่ละตำแหน่ง)"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-stone-900" />
-                <span>จัดเวรอัตโนมัติ (ต่อจากคนที่ 1)</span>
-              </button>
-
-              <button
                 onClick={onOpenStaffModal}
                 className="py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 font-medium text-xs rounded-xl border border-stone-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
-                title="จัดการเจ้าหน้าที่"
+                title="จัดการรายชื่อเจ้าหน้าที่ เพิ่ม ลบ แก้ไข"
               >
+                <UserCheck className="w-3.5 h-3.5 text-stone-600" />
                 <span>จัดการเจ้าหน้าที่</span>
               </button>
 
@@ -375,6 +368,19 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               >
                 <DollarSign className="w-3.5 h-3.5 text-amber-600" />
                 <span>กำหนดค่าเวร</span>
+              </button>
+            </>
+          )}
+
+          {(currentUser?.isAdmin || currentUser?.isSubAdmin) && (
+            <>
+              <button
+                onClick={onOpenAutoSchedule}
+                className="py-2 px-3.5 bg-[#4ADE80] hover:bg-[#22C55E] text-stone-900 font-bold text-xs rounded-xl border border-[#16A34A] shadow-[1px_2px_0px_rgba(70,60,50,0.12)] flex items-center gap-1.5 transition-all cursor-pointer"
+                title="จัดเวรอัตโนมัติ (หมุนเวียนต่อจากคนที่ 1 ของแต่ละตำแหน่ง)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-stone-900" />
+                <span>จัดเวรอัตโนมัติ (ต่อจากคนที่ 1)</span>
               </button>
 
               {onClearSchedule && (
@@ -796,20 +802,18 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                   ล้างเวรออก (Clear)
                 </button>
                 <div className="flex items-center gap-2">
-                  {(currentUser?.isAdmin || currentUser?.isSubAdmin) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCell(null);
-                        onOpenShiftModal();
-                      }}
-                      className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
-                      title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
-                    >
-                      <DollarSign className="w-3 h-3 text-amber-600" />
-                      <span>กำหนดค่าเวร</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCell(null);
+                      onOpenShiftModal();
+                    }}
+                    className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
+                    title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
+                  >
+                    <DollarSign className="w-3 h-3 text-amber-600" />
+                    <span>กำหนดค่าเวร</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setSelectedCell(null)}

@@ -641,6 +641,7 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
+        onOpenStaffModal={() => setIsStaffModalOpen(true)}
         onOpenShiftModal={() => setIsShiftModalOpen(true)}
         onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
         isGoogleDriveConnected={Boolean(googleWorkspaceUser)}
@@ -710,6 +711,33 @@ export default function App() {
             currentUser={currentUser}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
             onSaveShiftType={handleSaveShiftType}
+          />
+        )}
+
+        {/* 5. Staff Management Tab (Admin / Sub-Admin Only) */}
+        {activeTab === 'staff' && (currentUser?.isAdmin || currentUser?.isSubAdmin) && (
+          <StaffManagementModal
+            isOpen={true}
+            isPageMode={true}
+            onClose={() => setActiveTab('lab')}
+            staffList={staffList}
+            currentUser={currentUser}
+            onSaveStaff={handleSaveStaff}
+            onDeleteStaff={handleDeleteStaff}
+            onReorderStaff={handleReorderStaff}
+            onResetSubAdminPassword={handleResetSubAdminPassword}
+          />
+        )}
+
+        {/* 6. Shift Configuration Tab (Admin / Sub-Admin Only) */}
+        {activeTab === 'shifts' && (currentUser?.isAdmin || currentUser?.isSubAdmin) && (
+          <ShiftManagementModal
+            isOpen={true}
+            isPageMode={true}
+            onClose={() => setActiveTab('lab')}
+            shiftTypes={shiftTypes}
+            onSaveShiftType={handleSaveShiftType}
+            onDeleteShiftType={handleDeleteShiftType}
           />
         )}
       </main>
