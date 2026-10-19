@@ -62,6 +62,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [inlineRateInput, setInlineRateInput] = useState<string>('0');
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'MT' | 'AMT' | 'Office' | 'Service' | 'paid' | 'free'>('all');
+  const [deletingShift, setDeletingShift] = useState<{ id: string; code: string } | null>(null);
 
   if (!isOpen) return null;
 
@@ -234,8 +235,6 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
       setIsSaving(false);
     }
   };
-
-  const [deletingShift, setDeletingShift] = useState<{ id: string; code: string } | null>(null);
 
   const handleDelete = (id: string, code: string) => {
     setDeletingShift({ id, code });

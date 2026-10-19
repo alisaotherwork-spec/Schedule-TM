@@ -78,3 +78,28 @@ export interface OtClaimRow {
   rate: number;
   day: number;
 }
+
+export type BackupTriggerType =
+  | 'realtime_edit'
+  | 'auto_schedule'
+  | 'pre_clear'
+  | 'manual'
+  | 'periodic'
+  | 'staff_change'
+  | 'shift_change'
+  | 'imported';
+
+export interface BackupSnapshot {
+  id: string;
+  timestamp: string;
+  formattedDateThai: string;
+  yearMonth: string;
+  triggerType: BackupTriggerType;
+  description: string;
+  updatedBy: string;
+  dutyCount: number;
+  labSchedule: MonthSchedule;
+  donorSchedule: MonthSchedule;
+  staffList?: Staff[];
+  shiftTypes?: ShiftType[];
+}

@@ -62,6 +62,23 @@
         "adminName": { "type": "string", "maxLength": 50 }
       },
       "required": ["id"]
+    },
+    "BackupSnapshot": {
+      "title": "BackupSnapshot",
+      "description": "Realtime automatic and manual backup snapshots of schedules, staff, and shifts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "timestamp": { "type": "string" },
+        "yearMonth": { "type": "string" },
+        "triggerType": { "type": "string" },
+        "description": { "type": "string" },
+        "updatedBy": { "type": "string" },
+        "dutyCount": { "type": "number" },
+        "labAssignments": { "type": "object" },
+        "donorAssignments": { "type": "object" }
+      },
+      "required": ["id", "timestamp", "yearMonth", "triggerType"]
     }
   },
   "firestore": {
@@ -76,6 +93,10 @@
     "/schedules/{scheduleId}": {
       "schema": { "$ref": "Schedule" },
       "description": "Monthly duty schedules"
+    },
+    "/backups/{backupId}": {
+      "schema": { "$ref": "BackupSnapshot" },
+      "description": "Realtime backup snapshots"
     },
     "/systemSettings/{settingId}": {
       "schema": { "$ref": "SystemSetting" },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Staff, ShiftType, MonthSchedule, UserSession, RoomId } from './types';
+import { Staff, ShiftType, MonthSchedule, UserSession, RoomId, BackupSnapshot, BackupTriggerType } from './types';
 import {
   INITIAL_STAFF,
   INITIAL_SHIFT_TYPES,
@@ -15,6 +15,9 @@ import {
   removeShiftType,
   subscribeSchedule,
   saveSchedule,
+  saveRealtimeBackupSnapshot,
+  subscribeRealtimeBackups,
+  deleteBackupSnapshot,
   signInGoogleWorkspace,
   logoutGoogleWorkspace,
   getGoogleAccessToken,
@@ -37,6 +40,7 @@ import { StaffManagementModal } from './components/StaffManagementModal';
 import { ShiftManagementModal } from './components/ShiftManagementModal';
 import { AutoScheduleModal } from './components/AutoScheduleModal';
 import { ClearScheduleModal } from './components/ClearScheduleModal';
+import { RealtimeBackupModal } from './components/RealtimeBackupModal';
 import { CheckCircle2 } from 'lucide-react';
 import {
   CuteAlien,
@@ -142,6 +146,38 @@ export default function App() {
   const [isAutoScheduleModalOpen, setIsAutoScheduleModalOpen] = useState(false);
   const [clearModalRoom, setClearModalRoom] = useState<RoomId | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Real-time Automated Backup States
+  const [realtimeBackups, setRealtimeBackups] = useState<BackupSnapshot[]>(() => {
+    try {
+      const saved = localStorage.getItem('bloodbank_realtime_backups');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isRealtimeBackupModalOpen, setIsRealtimeBackupModalOpen] = useState(false);
+  const [lastBackupTime, setLastBackupTime] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('bloodbank_last_backup_time');
+    } catch {
+      return null;
+    }
+  });
+  const [isSavingBackup, setIsSavingBackup] = useState(false);
+  const backupDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Subscribe to real-time cloud backups
+  useEffect(() => {
+    const unsubscribe = subscribeRealtimeBackups((list) => {
+      if (list && list.length > 0) {
+        setRealtimeBackups(list);
+        setLastBackupTime(list[0].formattedDateThai);
+        localStorage.setItem('bloodbank_last_backup_time', list[0].formattedDateThai);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Sync with Firestore for Staff
   useEffect(() => {
@@ -387,6 +423,151 @@ export default function App() {
     localStorage.setItem('bloodbank_is_guest', 'true');
   };
 
+  // ==========================================
+  // Real-time Automated Backup Engine
+  // ==========================================
+
+  const countAssignedDuties = (labSched: MonthSchedule, donorSched: MonthSchedule): number => {
+    let count = 0;
+    [labSched, donorSched].forEach((sched) => {
+      if (!sched?.assignments) return;
+      Object.values(sched.assignments).forEach((dayMap) => {
+        if (!dayMap) return;
+        Object.values(dayMap).forEach((code) => {
+          if (code && code !== 'OFFF') count++;
+        });
+      });
+    });
+    return count;
+  };
+
+  const formatDateTimeThai = (date: Date = new Date()): string => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const monthNames = [
+      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ];
+    const m = monthNames[date.getMonth()];
+    const y = date.getFullYear() + 543;
+    const time = date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return `${day} ${m} ${y} เวลา ${time} น.`;
+  };
+
+  const createRealtimeBackupSnapshot = async (
+    triggerType: BackupTriggerType,
+    customDescription?: string,
+    overrideLab?: MonthSchedule,
+    overrideDonor?: MonthSchedule
+  ) => {
+    setIsSavingBackup(true);
+    const targetLab = overrideLab || labSchedule;
+    const targetDonor = overrideDonor || donorSchedule;
+    const now = new Date();
+    const formattedThai = formatDateTimeThai(now);
+    const snapshotId = `backup_${now.getTime()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const defaultDescMap: Record<BackupTriggerType, string> = {
+      realtime_edit: `แก้ไขเวร Real-time (${formatYearMonthThai(yearMonth)})`,
+      auto_schedule: `จัดเวรอัตโนมัติ (${formatYearMonthThai(yearMonth)})`,
+      pre_clear: `จุดสำรองความปลอดภัยก่อนล้างตาราง (${formatYearMonthThai(yearMonth)})`,
+      manual: `สำรองข้อมูลโดยผู้ใช้ (${formatYearMonthThai(yearMonth)})`,
+      periodic: `สำรองข้อมูลอัตโนมัติตามรอบ (${formatYearMonthThai(yearMonth)})`,
+      staff_change: `ปรับปรุงรายชื่อเจ้าหน้าที่`,
+      shift_change: `ปรับปรุงรหัสเวรและอัตราค่าตอบแทน`,
+      imported: `นำเข้าข้อมูลสำรอง`,
+    };
+
+    const snapshot: BackupSnapshot = {
+      id: snapshotId,
+      timestamp: now.toISOString(),
+      formattedDateThai: formattedThai,
+      yearMonth,
+      triggerType,
+      description: customDescription || defaultDescMap[triggerType] || 'สำรองข้อมูล Real-time',
+      updatedBy: currentUser?.englishName || 'system',
+      dutyCount: countAssignedDuties(targetLab, targetDonor),
+      labSchedule: targetLab,
+      donorSchedule: targetDonor,
+      staffList,
+      shiftTypes,
+    };
+
+    try {
+      await saveRealtimeBackupSnapshot(snapshot);
+      setLastBackupTime(formattedThai);
+      localStorage.setItem('bloodbank_last_backup_time', formattedThai);
+    } catch (err) {
+      console.warn('Realtime backup snapshot error:', err);
+    } finally {
+      setIsSavingBackup(false);
+    }
+  };
+
+  const handleRestoreBackup = async (snapshot: BackupSnapshot) => {
+    // 1. Safety snapshot of current state before restoring
+    await createRealtimeBackupSnapshot('realtime_edit', 'จุดสำรองความปลอดภัยก่อนกู้คืนข้อมูล');
+
+    // 2. Restore schedules
+    if (snapshot.labSchedule) {
+      setLabSchedule(snapshot.labSchedule);
+      localStorage.setItem(`bloodbank_sched_lab_${snapshot.yearMonth}`, JSON.stringify(snapshot.labSchedule));
+      await saveSchedule(snapshot.labSchedule).catch(console.warn);
+    }
+    if (snapshot.donorSchedule) {
+      setDonorSchedule(snapshot.donorSchedule);
+      localStorage.setItem(`bloodbank_sched_donor_${snapshot.yearMonth}`, JSON.stringify(snapshot.donorSchedule));
+      await saveSchedule(snapshot.donorSchedule).catch(console.warn);
+    }
+    if (snapshot.yearMonth && snapshot.yearMonth !== yearMonth) {
+      setYearMonth(snapshot.yearMonth);
+    }
+    if (snapshot.staffList && snapshot.staffList.length > 0) {
+      setStaffList(snapshot.staffList);
+      localStorage.setItem('bloodbank_staff', JSON.stringify(snapshot.staffList));
+      await replaceAllStaffInFirestore(snapshot.staffList).catch(console.warn);
+    }
+    if (snapshot.shiftTypes && snapshot.shiftTypes.length > 0) {
+      setShiftTypes(snapshot.shiftTypes);
+      localStorage.setItem('bloodbank_shifts', JSON.stringify(snapshot.shiftTypes));
+      for (const st of snapshot.shiftTypes) {
+        await saveShiftType(st).catch(console.warn);
+      }
+    }
+  };
+
+  const handleDeleteBackup = async (backupId: string) => {
+    setRealtimeBackups((prev) => prev.filter((b) => b.id !== backupId));
+    await deleteBackupSnapshot(backupId);
+  };
+
+  const handleImportBackupJson = async (payload: any) => {
+    await createRealtimeBackupSnapshot('manual', 'จุดสำรองความปลอดภัยก่อนนำเข้าไฟล์ JSON');
+
+    if (payload.labSchedule) {
+      setLabSchedule(payload.labSchedule);
+      localStorage.setItem(`bloodbank_sched_lab_${payload.labSchedule.yearMonth || yearMonth}`, JSON.stringify(payload.labSchedule));
+      await saveSchedule(payload.labSchedule).catch(console.warn);
+    }
+    if (payload.donorSchedule) {
+      setDonorSchedule(payload.donorSchedule);
+      localStorage.setItem(`bloodbank_sched_donor_${payload.donorSchedule.yearMonth || yearMonth}`, JSON.stringify(payload.donorSchedule));
+      await saveSchedule(payload.donorSchedule).catch(console.warn);
+    }
+    if (payload.staffList && Array.isArray(payload.staffList)) {
+      setStaffList(payload.staffList);
+      localStorage.setItem('bloodbank_staff', JSON.stringify(payload.staffList));
+      await replaceAllStaffInFirestore(payload.staffList).catch(console.warn);
+    }
+    if (payload.shiftTypes && Array.isArray(payload.shiftTypes)) {
+      setShiftTypes(payload.shiftTypes);
+      localStorage.setItem('bloodbank_shifts', JSON.stringify(payload.shiftTypes));
+      for (const st of payload.shiftTypes) {
+        await saveShiftType(st).catch(console.warn);
+      }
+    }
+    await createRealtimeBackupSnapshot('imported', 'นำเข้าไฟล์ข้อมูลสำรอง JSON สำเร็จ');
+  };
+
   // Update a single shift cell
   const handleUpdateShift = async (
     roomId: RoomId,
@@ -424,6 +605,19 @@ export default function App() {
     } catch (err) {
       console.warn('Failed to save to Firestore, stored locally:', err);
     }
+
+    // Trigger Real-time Automated Backup (debounced 1.5s for seamless editing)
+    if (backupDebounceTimerRef.current) {
+      clearTimeout(backupDebounceTimerRef.current);
+    }
+    backupDebounceTimerRef.current = setTimeout(() => {
+      createRealtimeBackupSnapshot(
+        'realtime_edit',
+        undefined,
+        isLab ? updatedSchedule : labSchedule,
+        isLab ? donorSchedule : updatedSchedule
+      );
+    }, 1500);
 
     // Trigger Debounced Auto-Sync to Google Drive if connected and enabled
     if (autoSyncEnabled) {
@@ -531,6 +725,14 @@ export default function App() {
     } catch (err) {
       console.warn('Firestore auto-schedule save error:', err);
     }
+
+    // Realtime Backup Snapshot
+    createRealtimeBackupSnapshot(
+      'auto_schedule',
+      `จัดเวรอัตโนมัติห้อง${schedule.roomId === 'lab' ? 'ปฏิบัติการ' : 'รับบริจาค'} (${formatYearMonthThai(yearMonth)})`,
+      schedule.roomId === 'lab' ? schedule : labSchedule,
+      schedule.roomId === 'donor' ? schedule : donorSchedule
+    ).catch(console.warn);
   };
 
   // Staff Password Management
@@ -568,6 +770,12 @@ export default function App() {
     const shouldClearDonor = scope === 'both' || targetRoom === 'donor';
     const updatedBy = currentUser?.englishName || 'admin';
 
+    // 1. Safety Realtime Snapshot BEFORE clearing
+    await createRealtimeBackupSnapshot(
+      'pre_clear',
+      `จุดปลอดภัยก่อนล้างตารางห้อง${scope === 'both' ? 'ทั้งหมด (Lab + รับบริจาค)' : targetRoom === 'lab' ? 'ปฏิบัติการ' : 'รับบริจาค'} (${formatYearMonthThai(yearMonth)})`
+    );
+
     if (shouldClearLab) {
       const emptyLab: MonthSchedule = {
         id: `lab_${yearMonth}`,
@@ -604,11 +812,17 @@ export default function App() {
       }
     }
 
+    // 2. Snapshot AFTER clearing
+    createRealtimeBackupSnapshot(
+      'manual',
+      `ล้างตารางเวร${scope === 'both' ? 'ทั้งหมด' : targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} เป็นตารางเปล่า (${formatYearMonthThai(yearMonth)})`
+    ).catch(console.warn);
+
     setClearModalRoom(null);
     setSuccessToast(
       scope === 'both'
-        ? `ล้างตารางเวรทั้งห้องปฏิบัติการและห้องรับบริจาค ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว`
-        : `ล้างตารางเวร${targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว`
+        ? `ล้างตารางเวรทั้งห้องปฏิบัติการและห้องรับบริจาค ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว (มีจุดสำรองกู้คืนย้อนหลังได้ตลอด)`
+        : `ล้างตารางเวร${targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว (มีจุดสำรองกู้คืนย้อนหลังได้ตลอด)`
     );
     setTimeout(() => {
       setSuccessToast(null);

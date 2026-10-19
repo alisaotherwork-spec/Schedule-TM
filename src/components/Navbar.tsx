@@ -23,6 +23,7 @@ import {
   X,
   Cloud,
   UserCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   CuteAlien,
@@ -49,6 +50,8 @@ interface NavbarProps {
   onOpenShiftModal?: () => void;
   onOpenGoogleDriveModal?: () => void;
   isGoogleDriveConnected?: boolean;
+  onOpenRealtimeBackupModal?: () => void;
+  lastBackupTime?: string | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -63,6 +66,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenShiftModal,
   onOpenGoogleDriveModal,
   isGoogleDriveConnected,
+  onOpenRealtimeBackupModal,
+  lastBackupTime,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -373,15 +378,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Right side controls: Google Drive Sync and Month Indicator */}
-        <div className="flex items-center gap-3 text-xs font-medium text-stone-500 shrink-0">
+        {/* Right side controls: Real-time Backup, Google Drive Sync, and Month Indicator */}
+        <div className="flex items-center gap-2 sm:gap-2.5 text-xs font-medium text-stone-500 shrink-0">
+          {/* Real-time Backup Badge / Button (Accessible to all for peace of mind, management can restore) */}
+          {onOpenRealtimeBackupModal && (
+            <button
+              onClick={onOpenRealtimeBackupModal}
+              className="py-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] shrink-0"
+              title="ระบบสำรองข้อมูล Real-time อัตโนมัติ: บันทึกและซิงค์ข้อมูลต่อเนื่อง"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+              <span className="hidden sm:inline">สำรองข้อมูล Real-time</span>
+              <span className="sm:hidden">สำรอง Real-time</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="ระบบสำรองแบบ Real-time ทำงานปกติ" />
+            </button>
+          )}
+
           {hasManagementAccess && onOpenGoogleDriveModal && (
             <button
               onClick={onOpenGoogleDriveModal}
-              className="py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50/90 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] shrink-0"
+              className="py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] shrink-0"
               title="เชื่อมต่อและสำรองข้อมูล Google Drive / Google Sheets"
             >
-              <Cloud className="w-3.5 h-3.5 text-emerald-700" />
+              <Cloud className="w-3.5 h-3.5 text-stone-600" />
               <span>Google Drive</span>
               {isGoogleDriveConnected && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" title="เชื่อมต่อแล้ว" />
@@ -412,15 +431,28 @@ export const Navbar: React.FC<NavbarProps> = ({
               </p>
             </div>
           )}
+          {onOpenRealtimeBackupModal && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenRealtimeBackupModal();
+              }}
+              className="w-full py-2 px-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-700" />
+              <span>ระบบสำรองข้อมูล Real-time</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </button>
+          )}
           {hasManagementAccess && onOpenGoogleDriveModal && (
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
                 onOpenGoogleDriveModal();
               }}
-              className="w-full py-2 px-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-2 px-3 rounded-lg bg-stone-50 border border-stone-200 text-stone-700 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Cloud className="w-4 h-4 text-emerald-700" />
+              <Cloud className="w-4 h-4 text-stone-600" />
               <span>สำรองข้อมูล Google Drive / Sheets</span>
               {isGoogleDriveConnected && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />

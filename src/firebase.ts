@@ -7,7 +7,10 @@ import {
   onSnapshot,
   setDoc,
   deleteDoc,
-  getDocs
+  getDocs,
+  query,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -18,7 +21,7 @@ import {
   User
 } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Staff, ShiftType, MonthSchedule } from './types';
+import { Staff, ShiftType, MonthSchedule, BackupSnapshot } from './types';
 
 const app = initializeApp(firebaseConfig);
 const firestoreDbId = (firebaseConfig as any).firestoreDatabaseId;
@@ -293,5 +296,98 @@ export const saveSchedule = async (schedule: MonthSchedule) => {
     await setDoc(doc(db, 'schedules', schedule.id), cleanData);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
+  }
+};
+
+// ==========================================
+// Real-time Automated Backup System
+// ==========================================
+
+export const saveRealtimeBackupSnapshot = async (snapshot: BackupSnapshot) => {
+  const path = `backups/${snapshot.id}`;
+
+  // 1. Mirror locally in localStorage for instant offline access
+  try {
+    const localRaw = localStorage.getItem('bloodbank_realtime_backups');
+    const localList: BackupSnapshot[] = localRaw ? JSON.parse(localRaw) : [];
+    const updatedLocal = [snapshot, ...localList.filter((b) => b.id !== snapshot.id)].slice(0, 30);
+    localStorage.setItem('bloodbank_realtime_backups', JSON.stringify(updatedLocal));
+  } catch (e) {
+    console.warn('Local backup mirroring warning:', e);
+  }
+
+  // 2. Persist to Firestore in real-time
+  try {
+    const cleanData = sanitizeForFirestore(snapshot);
+    await setDoc(doc(db, 'backups', snapshot.id), cleanData);
+  } catch (err) {
+    console.warn('Firestore backup write warning:', err);
+  }
+};
+
+export const subscribeRealtimeBackups = (
+  callback: (backups: BackupSnapshot[]) => void,
+  onError?: (err: Error) => void
+) => {
+  const path = 'backups';
+  try {
+    const q = query(collection(db, path), orderBy('timestamp', 'desc'), limit(40));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list: BackupSnapshot[] = [];
+        snapshot.forEach((d) => {
+          list.push(d.data() as BackupSnapshot);
+        });
+        if (list.length > 0) {
+          // Update local cache
+          localStorage.setItem('bloodbank_realtime_backups', JSON.stringify(list.slice(0, 30)));
+          callback(list);
+        } else {
+          // Fallback to local cache if Firestore backups is empty
+          try {
+            const saved = localStorage.getItem('bloodbank_realtime_backups');
+            if (saved) callback(JSON.parse(saved));
+            else callback([]);
+          } catch {
+            callback([]);
+          }
+        }
+      },
+      (err) => {
+        console.warn('Realtime backups subscription error, using local fallback:', err);
+        try {
+          const saved = localStorage.getItem('bloodbank_realtime_backups');
+          if (saved) callback(JSON.parse(saved));
+        } catch {}
+        onError?.(err);
+      }
+    );
+  } catch (err: any) {
+    console.warn('Failed to subscribe realtime backups, fallback to local:', err);
+    try {
+      const saved = localStorage.getItem('bloodbank_realtime_backups');
+      if (saved) callback(JSON.parse(saved));
+    } catch {}
+    return () => {};
+  }
+};
+
+export const deleteBackupSnapshot = async (backupId: string) => {
+  // 1. Remove from local mirror
+  try {
+    const localRaw = localStorage.getItem('bloodbank_realtime_backups');
+    if (localRaw) {
+      const localList: BackupSnapshot[] = JSON.parse(localRaw);
+      const filtered = localList.filter((b) => b.id !== backupId);
+      localStorage.setItem('bloodbank_realtime_backups', JSON.stringify(filtered));
+    }
+  } catch {}
+
+  // 2. Remove from Firestore
+  try {
+    await deleteDoc(doc(db, 'backups', backupId));
+  } catch (err) {
+    console.warn('Firestore delete backup error:', err);
   }
 };

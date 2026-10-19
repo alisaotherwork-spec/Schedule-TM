@@ -40,6 +40,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
+  const [deletingStaff, setDeletingStaff] = useState<{ id: string; name: string } | null>(null);
+  const [resettingStaff, setResettingStaff] = useState<{ id: string; name: string } | null>(null);
 
   if (!isOpen) return null;
 
@@ -185,9 +187,6 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
       setIsSaving(false);
     }
   };
-
-  const [deletingStaff, setDeletingStaff] = useState<{ id: string; name: string } | null>(null);
-  const [resettingStaff, setResettingStaff] = useState<{ id: string; name: string } | null>(null);
 
   const handleDelete = (staffId: string, name: string) => {
     setDeletingStaff({ id: staffId, name });

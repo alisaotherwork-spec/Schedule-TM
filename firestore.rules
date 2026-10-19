@@ -17,6 +17,10 @@ service cloud.firestore {
     match /schedules/{scheduleId} {
       allow read, write: if true;
     }
+    // Realtime Backup snapshots and history
+    match /backups/{backupId} {
+      allow read, write: if true;
+    }
     // Settings
     match /systemSettings/{settingId} {
       allow read, write: if true;
