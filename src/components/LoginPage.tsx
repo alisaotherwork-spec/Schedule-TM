@@ -1,8 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Staff, UserSession } from '../types';
 import { CuteAlien, CuteAstronaut, SolarSystemBackground, CuteSpaceBarStrip } from './CuteSpaceDecorations';
-import { Lock, User, ShieldCheck, ArrowRight, AlertCircle, Eye, EyeOff, Shield, Check, RotateCcw, Search } from 'lucide-react';
+import {
+  Lock,
+  User,
+  ShieldCheck,
+  ArrowRight,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  RotateCcw
+} from 'lucide-react';
 import { ForceChangePasswordModal } from './ForceChangePasswordModal';
+import {
+  isSuperAdminInput,
+  findStaffByNameOrEnglish
+} from '../utils/staffAuthUtils';
 
 interface LoginPageProps {
   staffList: Staff[];
@@ -19,7 +32,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 }) => {
   // Step 1: 'name', Step 2: 'password' (for admin/sub-admin)
   const [step, setStep] = useState<'name' | 'password'>('name');
-  const [englishName, setEnglishName] = useState('');
+  const [inputName, setInputName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +45,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus password input when transitioning to password step
+  // Focus management
   useEffect(() => {
     if (step === 'password') {
       passwordInputRef.current?.focus();
@@ -41,89 +54,76 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   }, [step]);
 
-  const cleanName = englishName.trim();
-  const inputLower = cleanName.toLowerCase();
+  const cleanInput = inputName.trim();
 
-  // Helper to find staff by input name
-  const findStaffByInput = (input: string) => {
-    const trimmed = input.trim();
-    const lower = trimmed.toLowerCase();
-    if (!trimmed) return null;
-
-    // 1. Exact match (English or Thai)
-    let found = staffList.find(
-      (s) => s.englishName.toLowerCase() === lower || s.thaiName === trimmed
-    );
-    if (found) return found;
-
-    // 2. Starts with match (e.g. first name)
-    found = staffList.find(
-      (s) => s.englishName.toLowerCase().startsWith(lower) || s.thaiName.startsWith(trimmed)
-    );
-    if (found) return found;
-
-    // 3. Includes match
-    found = staffList.find(
-      (s) => s.englishName.toLowerCase().includes(lower) || s.thaiName.includes(trimmed)
-    );
-    return found || null;
-  };
-
-  // Step 1: Submit Name (Runs only when user clicks "ถัดไป / เข้าสู่ระบบ" or presses Enter after finishing typing)
-  const handleProceedName = (selectedNameOverride?: string) => {
+  // Perform login or transition to password for a identified staff member
+  const proceedWithStaff = (staff: Staff | null, isSuperAdmin: boolean) => {
     setError('');
-    const targetName = (selectedNameOverride !== undefined ? selectedNameOverride : cleanName).trim();
-    const targetLower = targetName.toLowerCase();
 
-    if (!targetName) {
-      setError('กรุณากรอกชื่อจริงภาษาไทยหรือชื่อภาษาอังกฤษ');
-      nameInputRef.current?.focus();
-      return;
-    }
-
-    // Check if Super Admin "alisa" or "อลิษา"
-    const isAlisa =
-      targetLower === 'alisa' ||
-      targetName === 'อลิษา' ||
-      targetLower.startsWith('alisa') ||
-      targetName.includes('อลิษา');
-
-    if (isAlisa) {
-      const staffObj = staffList.find(
-        (s) => s.englishName.toLowerCase() === 'alisa'
-      );
-      setConfirmedStaff(staffObj || null);
+    if (isSuperAdmin) {
+      const staffObj = staff || staffList.find((s) => (s.englishName || '').toLowerCase() === 'alisa') || null;
+      setConfirmedStaff(staffObj);
       setIsAlisaAdmin(true);
       setStep('password');
       return;
     }
 
-    // Check staff in list
-    const matched = findStaffByInput(targetName);
-    if (!matched) {
-      setError(`ไม่พบรายชื่อ "${targetName}" ในระบบ กรุณาตรวจสอบการสะกดชื่อ-สกุล หรือชื่อภาษาอังกฤษ`);
+    if (!staff) {
+      setError(`ไม่พบรายชื่อ "${cleanInput}" ในระบบ กรุณาตรวจสอบการสะกดชื่อภาษาไทย หรือชื่อภาษาอังกฤษ`);
       nameInputRef.current?.focus();
       return;
     }
 
     // If Sub-Admin: Requires password, switch to Step 2
-    if (matched.role === 'sub_admin') {
-      setConfirmedStaff(matched);
+    if (staff.role === 'sub_admin') {
+      setConfirmedStaff(staff);
       setIsAlisaAdmin(false);
       setStep('password');
       return;
     }
 
-    // If General Staff: Log in directly without password!
+    // General Staff: Direct login without password!
     onLogin({
-      englishName: matched.englishName,
-      thaiName: matched.thaiName,
+      englishName: staff.englishName,
+      thaiName: staff.thaiName,
       isAdmin: false,
       isSubAdmin: false,
-      staffId: matched.id,
-      category: matched.category,
-      position: matched.position,
+      staffId: staff.id,
+      category: staff.category,
+      position: staff.position,
     });
+  };
+
+  // Step 1: Submit Name via manual typing
+  const handleProceedName = () => {
+    setError('');
+    const targetQuery = cleanInput;
+
+    if (!targetQuery) {
+      setError('กรุณากรอกชื่อจริงภาษาไทย หรือชื่อภาษาอังกฤษ');
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    // 1. Check Super Admin (alisa / อลิษา)
+    if (isSuperAdminInput(targetQuery, staffList)) {
+      proceedWithStaff(null, true);
+      return;
+    }
+
+    // 2. Search staff by Thai name or English name
+    const matched = findStaffByNameOrEnglish(targetQuery, staffList);
+    if (matched) {
+      if ((matched.englishName || '').toLowerCase() === 'alisa' || matched.role === 'super_admin') {
+        proceedWithStaff(matched, true);
+      } else {
+        proceedWithStaff(matched, false);
+      }
+      return;
+    }
+
+    setError(`ไม่พบรายชื่อ "${targetQuery}" ในระบบ กรุณาตรวจสอบการสะกดชื่อภาษาไทย หรือชื่อภาษาอังกฤษ`);
+    nameInputRef.current?.focus();
   };
 
   // Step 2: Submit Password
@@ -252,12 +252,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div className="h-8 w-px bg-[#E3D7C5]" />
               <CuteAlien size={36} />
             </div>
-            <h1 className="text-xl font-bold text-stone-800 font-['Prompt']">
+            <h1 className="text-xl sm:text-2xl font-bold text-stone-800 font-['Prompt']">
               เข้าสู่ระบบ (Sign In)
             </h1>
             <p className="text-xs text-stone-500 mt-1">
               {step === 'name'
-                ? 'กรุณากรอกชื่อ-สกุล หรือชื่อภาษาอังกฤษเพื่อเข้าสู่ระบบ'
+                ? 'สามารถ Login ได้ทั้งภาษาไทยและภาษาอังกฤษ'
                 : 'กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ'}
             </p>
           </div>
@@ -272,34 +272,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               className="space-y-4"
             >
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-amber-600" />
-                    ชื่อ-สกุลเจ้าหน้าที่ หรือชื่อภาษาอังกฤษ
-                  </span>
+                <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-amber-600" />
+                  <span>ชื่อเจ้าหน้าที่</span>
                 </label>
+
                 <div className="relative">
                   <input
                     ref={nameInputRef}
                     type="text"
-                    value={englishName}
+                    value={inputName}
                     onChange={(e) => {
-                      setEnglishName(e.target.value);
+                      setInputName(e.target.value);
                       setError('');
                     }}
                     onKeyDown={(e) => {
-                      // Only proceed on Enter if NOT composing (e.g. Thai IME candidate selection)
                       if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                         e.preventDefault();
                         handleProceedName();
                       }
                     }}
-                    placeholder="พิมพ์ชื่อจริง หรือชื่อภาษาอังกฤษ..."
+                    placeholder="พิมพ์ชื่อภาษาไทย หรือภาษาอังกฤษ..."
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck="false"
                     className="w-full px-4 py-2.5 text-sm bg-white border-2 border-[#E3D9CC] rounded-xl focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all font-medium text-stone-800 placeholder:text-stone-400"
                     autoFocus
                     required
                   />
                 </div>
+
+                <p className="text-xs text-amber-800/80 mt-1.5 flex items-center justify-center gap-1 font-medium bg-amber-50/70 py-1 px-2 rounded-lg border border-amber-200/60">
+                  <span>💡 สามารถ Log in ได้ทั้งภาษาไทยและภาษาอังกฤษ</span>
+                </p>
               </div>
 
               {/* Error Message */}
@@ -333,11 +338,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-stone-800">
-                      {isAlisaAdmin ? 'ทนพญ.อลิษา แก่นบำรุง' : confirmedStaff?.thaiName}
+                    <div className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                      <span>{isAlisaAdmin ? 'ทนพญ.อลิษา แก่นบำรุง' : confirmedStaff?.thaiName}</span>
+                      <span className="text-[10px] font-mono text-stone-500 bg-white/70 px-1.5 py-0.5 rounded">
+                        @{isAlisaAdmin ? 'alisa' : confirmedStaff?.englishName}
+                      </span>
                     </div>
                     <div className="text-[11px] font-medium text-stone-500">
-                      {confirmedStaff?.position || 'งานเวชศาสตร์บริการโลหิต'}
+                      {isAlisaAdmin ? 'ผู้ดูแลระบบสูงสุด (Super Admin)' : confirmedStaff?.position || 'งานเวชศาสตร์บริการโลหิต'}
                     </div>
                   </div>
                 </div>
@@ -379,6 +387,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     setError('');
                   }}
                   placeholder="กรอกรหัสผ่านเพื่อเข้าสู่ระบบ"
+                  autoComplete="current-password"
                   className="w-full px-4 py-2.5 text-sm bg-white border-2 border-[#DACFBF] rounded-xl focus:outline-hidden focus:border-amber-600 focus:ring-2 focus:ring-amber-200 font-medium text-stone-800"
                   autoFocus
                   required

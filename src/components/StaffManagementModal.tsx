@@ -382,31 +382,40 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  ชื่อ-นามสกุล (ภาษาไทย)*
+                <label className="block font-semibold text-stone-700 mb-1 flex items-center justify-between">
+                  <span>ชื่อ-นามสกุล (ภาษาไทย)*</span>
+                  <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    ใช้เข้าสู่ระบบได้
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={thaiName}
                   onChange={(e) => setThaiName(e.target.value)}
                   placeholder="เช่น ทนพญ. สุภาพร เกียรติอนันต์"
-                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500"
+                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500 text-sm"
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  ชื่อจริงภาษาอังกฤษ (English Name - สำหรับล็อกอิน)*
+                <label className="block font-semibold text-stone-700 mb-1 flex items-center justify-between">
+                  <span>ชื่อภาษาอังกฤษ (English Name)*</span>
+                  <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    ใช้เข้าสู่ระบบได้
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={englishName}
                   onChange={(e) => setEnglishName(e.target.value)}
                   placeholder="เช่น Supaporn"
-                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500"
+                  className="w-full px-3 py-2 bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-500 text-sm"
                   required
                 />
+              </div>
+              <div className="sm:col-span-2 text-[11px] text-stone-500 bg-[#FAF4EA] p-2 rounded-lg border border-[#ECD9BA]">
+                💡 <strong>เคล็ดลับการเข้าสู่ระบบ:</strong> เจ้าหน้าที่สามารถใช้พิมพ์ล็อกอินได้ทั้งชื่อภาษาไทย (มีหรือไม่มีคำนำหน้า เช่น สุภาพร หรือ ทนพญ.สุภาพร) หรือชื่อภาษาอังกฤษ (เช่น Supaporn)
               </div>
 
               {/* Standard Position Selection with Abbreviation */}

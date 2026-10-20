@@ -1,8 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Staff, UserSession } from '../types';
 import { CuteAlien, CuteAstronaut } from './CuteSpaceDecorations';
-import { X, Lock, User, ShieldCheck, ArrowRight, AlertCircle, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import {
+  X,
+  Lock,
+  User,
+  ShieldCheck,
+  ArrowRight,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  RotateCcw
+} from 'lucide-react';
 import { ForceChangePasswordModal } from './ForceChangePasswordModal';
+import {
+  isSuperAdminInput,
+  findStaffByNameOrEnglish
+} from '../utils/staffAuthUtils';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -23,7 +37,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 }) => {
   // Step 1: 'name', Step 2: 'password' (for admin/sub-admin)
   const [step, setStep] = useState<'name' | 'password'>('name');
-  const [englishName, setEnglishName] = useState('');
+  const [inputName, setInputName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -40,6 +54,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setStep('name');
+      setInputName('');
       setPassword('');
       setError('');
       setConfirmedStaff(null);
@@ -59,90 +74,74 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   if (!isOpen) return null;
 
-  const cleanName = englishName.trim();
-  const inputLower = cleanName.toLowerCase();
+  const cleanInput = inputName.trim();
 
-  // Helper to find staff
-  const findStaffByInput = (input: string) => {
-    const trimmed = input.trim();
-    const lower = trimmed.toLowerCase();
-    if (!trimmed) return null;
-
-    // 1. Exact match
-    let found = staffList.find(
-      (s) => s.englishName.toLowerCase() === lower || s.thaiName === trimmed
-    );
-    if (found) return found;
-
-    // 2. Starts with match
-    found = staffList.find(
-      (s) => s.englishName.toLowerCase().startsWith(lower) || s.thaiName.startsWith(trimmed)
-    );
-    if (found) return found;
-
-    // 3. Includes match
-    found = staffList.find(
-      (s) => s.englishName.toLowerCase().includes(lower) || s.thaiName.includes(trimmed)
-    );
-    return found || null;
-  };
-
-  // Step 1: Submit Name
-  const handleProceedName = (selectedNameOverride?: string) => {
+  const proceedWithStaff = (staff: Staff | null, isSuperAdmin: boolean) => {
     setError('');
-    const targetName = (selectedNameOverride !== undefined ? selectedNameOverride : cleanName).trim();
-    const targetLower = targetName.toLowerCase();
 
-    if (!targetName) {
-      setError('กรุณากรอกชื่อจริงภาษาไทยหรือชื่อภาษาอังกฤษ');
-      nameInputRef.current?.focus();
-      return;
-    }
-
-    // Check if Super Admin "alisa" or "อลิษา"
-    const isAlisa =
-      targetLower === 'alisa' ||
-      targetName === 'อลิษา' ||
-      targetLower.startsWith('alisa') ||
-      targetName.includes('อลิษา');
-
-    if (isAlisa) {
-      const staffObj = staffList.find(
-        (s) => s.englishName.toLowerCase() === 'alisa'
-      );
-      setConfirmedStaff(staffObj || null);
+    if (isSuperAdmin) {
+      const staffObj = staff || staffList.find((s) => (s.englishName || '').toLowerCase() === 'alisa') || null;
+      setConfirmedStaff(staffObj);
       setIsAlisaAdmin(true);
       setStep('password');
       return;
     }
 
-    // Check staff in list
-    const matched = findStaffByInput(targetName);
-    if (!matched) {
-      setError(`ไม่พบรายชื่อ "${targetName}" ในระบบ กรุณาตรวจสอบการสะกดชื่อ-สกุล หรือชื่อภาษาอังกฤษ`);
+    if (!staff) {
+      setError(`ไม่พบรายชื่อ "${cleanInput}" ในระบบ กรุณาตรวจสอบการสะกดชื่อภาษาไทย หรือชื่อภาษาอังกฤษ`);
       nameInputRef.current?.focus();
       return;
     }
 
-    // If Sub-Admin: Requires password, switch to Step 2
-    if (matched.role === 'sub_admin') {
-      setConfirmedStaff(matched);
+    // Sub-Admin requires password
+    if (staff.role === 'sub_admin') {
+      setConfirmedStaff(staff);
       setIsAlisaAdmin(false);
       setStep('password');
       return;
     }
 
-    // If General Staff: Log in directly without password!
+    // General Staff: direct login
     onLogin({
-      englishName: matched.englishName,
-      thaiName: matched.thaiName,
+      englishName: staff.englishName,
+      thaiName: staff.thaiName,
       isAdmin: false,
       isSubAdmin: false,
-      staffId: matched.id,
-      category: matched.category,
-      position: matched.position,
+      staffId: staff.id,
+      category: staff.category,
+      position: staff.position,
     });
     onClose();
+  };
+
+  // Step 1: Submit Name via typing
+  const handleProceedName = () => {
+    setError('');
+    const targetQuery = cleanInput;
+
+    if (!targetQuery) {
+      setError('กรุณากรอกชื่อจริงภาษาไทย หรือชื่อภาษาอังกฤษ');
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    if (isSuperAdminInput(targetQuery, staffList)) {
+      proceedWithStaff(null, true);
+      return;
+    }
+
+    const matched = findStaffByNameOrEnglish(targetQuery, staffList);
+    if (matched) {
+      if ((matched.englishName || '').toLowerCase() === 'alisa' || matched.role === 'super_admin') {
+        proceedWithStaff(matched, true);
+      } else {
+        proceedWithStaff(matched, false);
+      }
+      return;
+    }
+
+    setError(`ไม่พบรายชื่อ "${targetQuery}" ในระบบ กรุณาตรวจสอบการสะกดชื่อภาษาไทย หรือชื่อภาษาอังกฤษ`);
+    nameInputRef.current?.focus();
   };
 
   // Step 2: Submit Password
@@ -247,10 +246,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
           <div>
             <h2 className="text-lg font-bold text-stone-800 flex items-center gap-1.5 font-['Prompt']">
-              เข้าสู่ระบบจัดตารางเวร
+              เข้าสู่ระบบ / สลับผู้ใช้งาน
             </h2>
             <p className="text-xs text-stone-500">
-              {step === 'name' ? 'กรุณากรอกชื่อของคุณเพื่อเข้าสู่ระบบ' : 'กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ'}
+              {step === 'name' ? 'สามารถ Login ได้ทั้งภาษาไทยและภาษาอังกฤษ' : 'กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ'}
             </p>
           </div>
         </div>
@@ -265,33 +264,40 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             className="space-y-4"
           >
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                <span className="flex items-center gap-1">
-                  <User className="w-3.5 h-3.5 text-amber-600" />
-                  ชื่อ-สกุลเจ้าหน้าที่ หรือชื่อภาษาอังกฤษ
-                </span>
+              <label className="block text-xs font-semibold text-stone-700 mb-1.5 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-amber-600" />
+                <span>ชื่อเจ้าหน้าที่</span>
               </label>
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={englishName}
-                onChange={(e) => {
-                  setEnglishName(e.target.value);
-                  setError('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    handleProceedName();
-                  }
-                }}
-                placeholder="กรอกชื่อภาษาอังกฤษ หรือชื่อ-สกุล..."
-                className="w-full px-3.5 py-2.5 text-sm bg-white border-2 border-[#E3D9CC] rounded-xl focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all font-medium text-stone-800 placeholder:text-stone-400"
-                autoFocus
-                required
-              />
 
+              <div className="relative">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={inputName}
+                  onChange={(e) => {
+                    setInputName(e.target.value);
+                    setError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleProceedName();
+                    }
+                  }}
+                  placeholder="พิมพ์ชื่อภาษาไทย หรือภาษาอังกฤษ..."
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  className="w-full px-3.5 py-2.5 text-sm bg-white border-2 border-[#E3D9CC] rounded-xl focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all font-medium text-stone-800 placeholder:text-stone-400"
+                  autoFocus
+                  required
+                />
               </div>
+
+              <p className="text-xs text-amber-800/80 mt-1.5 flex items-center justify-center gap-1 font-medium bg-amber-50/70 py-1 px-2 rounded-lg border border-amber-200/60">
+                <span>💡 สามารถ Log in ได้ทั้งภาษาไทยและภาษาอังกฤษ</span>
+              </p>
+            </div>
 
             {error && (
               <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700 animate-fadeIn">
@@ -320,11 +326,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <div className="flex items-center gap-2">
                 <ShieldCheck className={`w-5 h-5 ${isAlisaAdmin ? 'text-amber-600' : 'text-indigo-600'}`} />
                 <div>
-                  <div className="text-xs font-bold text-stone-800">
-                    {isAlisaAdmin ? 'ทนพญ.อลิษา แก่นบำรุง' : confirmedStaff?.thaiName}
+                  <div className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                    <span>{isAlisaAdmin ? 'ทนพญ.อลิษา แก่นบำรุง' : confirmedStaff?.thaiName}</span>
+                    <span className="text-[10px] font-mono text-stone-500 bg-white/70 px-1 py-0.2 rounded">
+                      @{isAlisaAdmin ? 'alisa' : confirmedStaff?.englishName}
+                    </span>
                   </div>
                   <div className="text-[10px] font-medium text-stone-500">
-                    {confirmedStaff?.position || 'งานเวชศาสตร์บริการโลหิต'}
+                    {isAlisaAdmin ? 'ผู้ดูแลระบบสูงสุด (Super Admin)' : confirmedStaff?.position || 'งานเวชศาสตร์บริการโลหิต'}
                   </div>
                 </div>
               </div>
@@ -362,6 +371,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   setError('');
                 }}
                 placeholder="กรอกรหัสผ่านเพื่อเข้าสู่ระบบ"
+                autoComplete="current-password"
                 className="w-full px-3 py-2 text-sm bg-white border border-[#DACFBF] rounded-lg focus:outline-hidden focus:border-amber-600 focus:ring-1 focus:ring-amber-300 font-medium text-stone-800"
                 autoFocus
                 required
@@ -403,7 +413,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             onSuccess={handleForcedPasswordSuccess}
           />
         )}
-
       </div>
     </div>
   );
