@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RoomId } from '../types';
-import { CuteAlien, CuteAstronaut } from './CuteSpaceDecorations';
-import { X, Eraser, AlertTriangle, Check, Layers } from 'lucide-react';
+import { X, Eraser, AlertTriangle, Check, Loader2 } from 'lucide-react';
 
 interface ClearScheduleModalProps {
   isOpen: boolean;
@@ -21,6 +20,18 @@ export const ClearScheduleModal: React.FC<ClearScheduleModalProps> = ({
   const [scope, setScope] = useState<'current' | 'both'>('current');
   const [isClearing, setIsClearing] = useState(false);
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isClearing) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isClearing, onClose]);
+
   if (!isOpen) return null;
 
   const currentRoomName =
@@ -29,12 +40,16 @@ export const ClearScheduleModal: React.FC<ClearScheduleModalProps> = ({
   const handleConfirm = async () => {
     setIsClearing(true);
     try {
-      await onConfirmClear(scope);
-      onClose();
+      // Wrap with 1.8s timeout guarantee so it NEVER hangs
+      await Promise.race([
+        Promise.resolve(onConfirmClear(scope)),
+        new Promise((resolve) => setTimeout(resolve, 1800)),
+      ]);
     } catch (err) {
-      console.error('Error clearing schedule:', err);
+      console.warn('Error during clear schedule execution:', err);
     } finally {
       setIsClearing(false);
+      onClose();
     }
   };
 
@@ -44,13 +59,14 @@ export const ClearScheduleModal: React.FC<ClearScheduleModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+          disabled={isClearing}
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer disabled:opacity-30"
           title="ปิด"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Mascot & Header */}
+        {/* Header */}
         <div className="flex items-center gap-3 mb-4 pr-8">
           <div className="p-2.5 bg-rose-50 border-2 border-rose-200 rounded-2xl shadow-xs shrink-0 flex items-center justify-center">
             <Eraser className="w-6 h-6 text-rose-600" />
@@ -69,7 +85,7 @@ export const ClearScheduleModal: React.FC<ClearScheduleModalProps> = ({
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4 text-xs text-amber-900 flex items-start gap-2.5">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            รายการเวรที่ถูกมอบหมายในเดือนนี้จะถูกล้างออกทั้งหมดกลับสู่ <strong>หน้าตารางเปล่า</strong> โดยคุณสามารถเริ่มต้นลงเวรใหม่หรือกดปุ่ม <strong>"จัดเวรอัตโนมัติ"</strong> ได้ทันที
+            รายการเวรที่ถูกมอบหมายในเดือนนี้จะถูกล้างออกทั้งหมดกลับสู่ <strong>หน้าตารางเปล่า</strong> โดยระบบจะสำรองข้อมูลเดิมไว้ให้อัตโนมัติ สามารถกู้คืนย้อนหลังได้ตลอดเวลา
           </div>
         </div>
 
@@ -80,39 +96,47 @@ export const ClearScheduleModal: React.FC<ClearScheduleModalProps> = ({
           </label>
 
           <label
-            onClick={() => setScope('current')}
+            onClick={() => !isClearing && setScope('current')}
             className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
               scope === 'current'
                 ? 'bg-rose-50/70 border-rose-400 text-rose-950 font-medium shadow-xs'
                 : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
-            }`}
+            } ${isClearing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center gap-2 text-xs">
-              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                scope === 'current' ? 'border-rose-500 bg-rose-500 text-white' : 'border-stone-400'
-              }`}>
+              <span
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  scope === 'current' ? 'border-rose-500 bg-rose-500 text-white' : 'border-stone-400'
+                }`}
+              >
                 {scope === 'current' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
               </span>
-              <span>ล้างเฉพาะ <strong>{currentRoomName}</strong></span>
+              <span>
+                ล้างเฉพาะ <strong>{currentRoomName}</strong>
+              </span>
             </div>
             <span className="text-[11px] text-stone-500">แผนกปัจจุบัน</span>
           </label>
 
           <label
-            onClick={() => setScope('both')}
+            onClick={() => !isClearing && setScope('both')}
             className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
               scope === 'both'
                 ? 'bg-rose-50/70 border-rose-400 text-rose-950 font-medium shadow-xs'
                 : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
-            }`}
+            } ${isClearing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center gap-2 text-xs">
-              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                scope === 'both' ? 'border-rose-500 bg-rose-500 text-white' : 'border-stone-400'
-              }`}>
+              <span
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  scope === 'both' ? 'border-rose-500 bg-rose-500 text-white' : 'border-stone-400'
+                }`}
+              >
                 {scope === 'both' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
               </span>
-              <span>ล้างทั้งสองแผนก (Lab + Donor)</span>
+              <span>
+                ล้างทั้งสองแผนก <strong>(Lab + Donor)</strong>
+              </span>
             </div>
             <span className="text-[11px] text-stone-500">ทั้ง 2 แผนก</span>
           </label>
@@ -132,10 +156,19 @@ export const ClearScheduleModal: React.FC<ClearScheduleModalProps> = ({
             type="button"
             onClick={handleConfirm}
             disabled={isClearing}
-            className="py-2.5 px-4 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl border border-rose-700 shadow-[2px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+            className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl border border-rose-700 shadow-[2px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-60"
           >
-            <Eraser className="w-3.5 h-3.5" />
-            <span>{isClearing ? 'กำลังล้างตาราง...' : 'ยืนยันล้างเป็นตารางเปล่า'}</span>
+            {isClearing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>กำลังล้างตาราง...</span>
+              </>
+            ) : (
+              <>
+                <Eraser className="w-3.5 h-3.5" />
+                <span>ยืนยันล้างเป็นตารางเปล่า</span>
+              </>
+            )}
           </button>
         </div>
       </div>

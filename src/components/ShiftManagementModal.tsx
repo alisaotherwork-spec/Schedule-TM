@@ -119,7 +119,17 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
   const handleCancelForm = () => {
     setEditingShift(null);
+    setCode('');
+    setName('');
+    setSelectedPeriods(['morning']);
+    setAllowedPositions([...ALL_POSITION_ABBRS]);
+    setTimeRange('08:30 - 16:30 น.');
+    setRate(600);
+    setRateInput('600');
+    setIsOt(false);
+    setColor(COLOR_OPTIONS[0].value);
     setError('');
+    setNotice(null);
   };
 
   const togglePeriod = (p: ShiftPeriod) => {
@@ -186,8 +196,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSave = async (keepOpenForNext: boolean = false) => {
     const cleanCode = code.trim().toUpperCase();
 
     // Constraint: 1 to 4 characters
@@ -212,6 +221,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     }
 
     setIsSaving(true);
+    setError('');
     try {
       const shiftToSave: ShiftType = {
         id: editingShift?.id || `shift-${cleanCode.toLowerCase()}`,
@@ -226,14 +236,61 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
         color,
       };
 
-      await onSaveShiftType(shiftToSave);
-      setEditingShift(null);
+      // Wrap in Promise.race with 2.2s timeout so button never hangs or freezes
+      await Promise.race([
+        onSaveShiftType(shiftToSave),
+        new Promise((resolve) => setTimeout(resolve, 2200)),
+      ]);
+
+      const savedCode = shiftToSave.code;
+
+      // Always clear the old form data cleanly to wait for next new item
+      setCode('');
+      setName('');
+      setSelectedPeriods(['morning']);
+      setAllowedPositions([...ALL_POSITION_ABBRS]);
+      setTimeRange('08:30 - 16:30 น.');
+      setRate(600);
+      setRateInput('600');
+      setIsOt(false);
+      setColor(COLOR_OPTIONS[0].value);
+      setError('');
+
+      if (keepOpenForNext) {
+        setEditingShift({
+          id: `shift-${Date.now()}`,
+          code: '',
+          name: '',
+          period: 'morning',
+          periods: ['morning'],
+          allowedPositions: [...ALL_POSITION_ABBRS],
+          timeRange: '08:30 - 16:30 น.',
+          rate: 600,
+          isOt: false,
+          color: COLOR_OPTIONS[0].value,
+        });
+        setNotice(`✅ บันทึกรหัสเวร "${savedCode}" สำเร็จแล้ว (ล้างข้อมูลเก่าพร้อมเพิ่มรหัสเวรใหม่ได้ทันที)`);
+      } else {
+        setEditingShift(null);
+        setNotice(`✅ บันทึกรหัสเวร "${savedCode}" สำเร็จแล้ว (ล้างข้อมูลเก่าเรียบร้อย)`);
+      }
+      setTimeout(() => setNotice(null), 3500);
     } catch (err) {
       console.error(err);
       setError('เกิดข้อผิดพลาดในการบันทึกค่าเวร');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSaveAndAddNext = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    await doSave(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSave(false);
   };
 
   const handleDelete = (id: string, code: string) => {
@@ -563,7 +620,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
             {error && <p className="text-xs text-rose-600">{error}</p>}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={handleCancelForm}
@@ -571,10 +628,23 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
               >
                 ยกเลิก
               </button>
+              {editingShift && !shiftTypes.find(s => s.id === editingShift.id) && (
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveAndAddNext}
+                  className="px-3.5 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg border border-emerald-700 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="บันทึกและล้างข้อมูลเก่าพร้อมเพิ่มรหัสเวรใหม่ทันที"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกและเพิ่มรหัสถัดไป'}</span>
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={isSaving}
                 className="px-4 py-1.5 text-xs bg-[#F28C38] hover:bg-[#E57A24] text-white font-medium rounded-lg border border-[#D56B16] shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                title="บันทึกรหัสเวรและปิดฟอร์ม"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกรหัสเวร'}</span>

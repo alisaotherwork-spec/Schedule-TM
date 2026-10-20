@@ -52,6 +52,7 @@ interface NavbarProps {
   isGoogleDriveConnected?: boolean;
   onOpenRealtimeBackupModal?: () => void;
   lastBackupTime?: string | null;
+  isSavingBackup?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -68,6 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isGoogleDriveConnected,
   onOpenRealtimeBackupModal,
   lastBackupTime,
+  isSavingBackup = false,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -385,12 +387,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenRealtimeBackupModal}
               className="py-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.06)] shrink-0"
-              title="ระบบสำรองข้อมูล Real-time อัตโนมัติ: บันทึกและซิงค์ข้อมูลต่อเนื่อง"
+              title={`ระบบสำรองข้อมูล Real-time อัตโนมัติ: บันทึกและซิงค์ข้อมูลต่อเนื่อง${lastBackupTime ? ` (ล่าสุด: ${lastBackupTime})` : ''}`}
             >
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-              <span className="hidden sm:inline">สำรองข้อมูล Real-time</span>
-              <span className="sm:hidden">สำรอง Real-time</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="ระบบสำรองแบบ Real-time ทำงานปกติ" />
+              <span className="hidden sm:inline">
+                {isSavingBackup ? 'กำลังสำรอง Real-time...' : 'สำรองข้อมูล Real-time'}
+              </span>
+              <span className="sm:hidden">
+                {isSavingBackup ? 'กำลังสำรอง...' : 'สำรอง Real-time'}
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${isSavingBackup ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}
+                title="ระบบสำรองแบบ Real-time ทำงานปกติ"
+              />
             </button>
           )}
 

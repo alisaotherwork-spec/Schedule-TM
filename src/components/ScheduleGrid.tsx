@@ -3,7 +3,7 @@ import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } f
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser, Move, Hand, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Maximize2, Minimize2, Calendar } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser, Move, Hand, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Maximize2, Minimize2, Calendar, ShieldCheck } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -18,6 +18,7 @@ interface ScheduleGridProps {
   onOpenStaffModal: () => void;
   onOpenShiftModal: () => void;
   onOpenGoogleDriveModal?: () => void;
+  onOpenRealtimeBackupModal?: () => void;
   onClearSchedule?: () => void;
 }
 
@@ -33,6 +34,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   onOpenStaffModal,
   onOpenShiftModal,
   onOpenGoogleDriveModal,
+  onOpenRealtimeBackupModal,
   onClearSchedule,
 }) => {
   const [selectedCell, setSelectedCell] = useState<{ staffId: string; day: number; staffName: string } | null>(null);
@@ -403,6 +405,18 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 >
                   <Cloud className="w-3.5 h-3.5 text-emerald-600" />
                   <span>สำรอง Drive</span>
+                </button>
+              )}
+              {/* Real-time Cloud & Local Backup Button */}
+              {onOpenRealtimeBackupModal && (
+                <button
+                  onClick={onOpenRealtimeBackupModal}
+                  className="py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-900 font-bold text-xs rounded-xl border border-emerald-300 shadow-[1px_2px_0px_rgba(70,60,50,0.08)] flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="ระบบสำรองข้อมูล Real-time อัตโนมัติ: บันทึก ซิงค์ และเรียกคืนย้อนหลังได้ตลอด"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>สำรอง Real-time</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 </button>
               )}
             </>
@@ -802,18 +816,20 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                   ล้างเวรออก (Clear)
                 </button>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCell(null);
-                      onOpenShiftModal();
-                    }}
-                    className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
-                    title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
-                  >
-                    <DollarSign className="w-3 h-3 text-amber-600" />
-                    <span>กำหนดค่าเวร</span>
-                  </button>
+                  {(currentUser?.isAdmin || currentUser?.isSubAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCell(null);
+                        onOpenShiftModal();
+                      }}
+                      className="px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100/70 border border-amber-300 rounded-lg cursor-pointer flex items-center gap-1 font-medium"
+                      title="กำหนดและแก้ไขอัตราค่าเวรได้ตามต้องการ"
+                    >
+                      <DollarSign className="w-3 h-3 text-amber-600" />
+                      <span>กำหนดค่าเวร</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setSelectedCell(null)}

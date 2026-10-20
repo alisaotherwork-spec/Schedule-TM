@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Staff, StaffCategory, RoomId, UserSession, PositionAbbr } from '../types';
 import { ALL_POSITION_ABBRS, STANDARD_POSITIONS, getStaffPositionAbbr } from '../utils/positionUtils';
-import { X, UserPlus, Trash2, Edit2, Check, Shield, Key, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, UserPlus, Plus, Trash2, Edit2, Check, Shield, Key, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react';
 import { CuteAlien, PaperStar } from './CuteSpaceDecorations';
 
 interface StaffManagementModalProps {
@@ -98,6 +98,14 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
 
   const handleCancelForm = () => {
     setEditingStaff(null);
+    setThaiName('');
+    setEnglishName('');
+    setCategory('technologist');
+    setPosition('นักเทคนิคการแพทย์');
+    setPositionAbbr('MT');
+    setRoom('both');
+    setIsActive(true);
+    setIsSubAdminRole(false);
     setError('');
     setNotice(null);
   };
@@ -127,14 +135,14 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSave = async (keepOpenForNext: boolean = false) => {
     if (!thaiName.trim() || !englishName.trim()) {
       setError('กรุณากรอกทั้งชื่อไทย และชื่อภาษาอังกฤษ');
       return;
     }
 
     setIsSaving(true);
+    setError('');
     try {
       let role = editingStaff?.role || 'staff';
       let password = editingStaff?.password;
@@ -176,16 +184,60 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
         ...(mustChangePassword !== undefined ? { mustChangePassword } : {}),
       };
 
-      await onSaveStaff(staffToSave);
-      setEditingStaff(null);
-      setNotice('บันทึกข้อมูลเจ้าหน้าที่เรียบร้อยแล้ว');
-      setTimeout(() => setNotice(null), 3000);
+      // Wrap in Promise.race with 2.2s timeout so button never hangs or freezes
+      await Promise.race([
+        onSaveStaff(staffToSave),
+        new Promise((resolve) => setTimeout(resolve, 2200)),
+      ]);
+
+      const savedName = staffToSave.thaiName;
+
+      // Always clear the old form data cleanly to wait for next new item
+      setThaiName('');
+      setEnglishName('');
+      setCategory('technologist');
+      setPosition('นักเทคนิคการแพทย์');
+      setPositionAbbr('MT');
+      setRoom('both');
+      setIsActive(true);
+      setIsSubAdminRole(false);
+      setError('');
+
+      if (keepOpenForNext) {
+        setEditingStaff({
+          id: `staff-${Date.now()}`,
+          thaiName: '',
+          englishName: '',
+          category: 'technologist',
+          position: 'นักเทคนิคการแพทย์',
+          positionAbbr: 'MT',
+          room: 'both',
+          order: staffList.length + 2,
+          isActive: true,
+          role: 'staff',
+        });
+        setNotice(`✅ บันทึก "${savedName}" เรียบร้อยแล้ว (ล้างข้อมูลเก่าพร้อมเพิ่มคนถัดไปได้ทันที)`);
+      } else {
+        setEditingStaff(null);
+        setNotice(`✅ บันทึก "${savedName}" เรียบร้อยแล้ว (ล้างข้อมูลเก่าเรียบร้อย)`);
+      }
+      setTimeout(() => setNotice(null), 3500);
     } catch (err) {
       console.error(err);
       setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSaveAndAddNext = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    await doSave(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSave(false);
   };
 
   const handleDelete = (staffId: string, name: string) => {
@@ -464,7 +516,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
 
             {error && <p className="text-xs text-rose-600">{error}</p>}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={handleCancelForm}
@@ -472,10 +524,23 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
               >
                 ยกเลิก
               </button>
+              {editingStaff && !staffList.find(s => s.id === editingStaff.id) && (
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveAndAddNext}
+                  className="px-3.5 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg border border-emerald-700 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="บันทึกและล้างข้อมูลเก่าพร้อมเพิ่มคนถัดไปทันที"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกและเพิ่มคนถัดไป'}</span>
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={isSaving}
                 className="px-4 py-1.5 text-xs bg-[#F28C38] hover:bg-[#E57A24] text-white font-medium rounded-lg border border-[#D56B16] shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                title="บันทึกข้อมูลและปิดฟอร์ม"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>

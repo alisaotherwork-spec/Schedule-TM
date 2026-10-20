@@ -649,6 +649,7 @@ export default function App() {
 
   // Staff CRUD
   const handleSaveStaff = async (staff: Staff) => {
+    const isNew = !staffList.some((s) => s.id === staff.id);
     const exists = staffList.find((s) => s.id === staff.id);
     const updated = exists
       ? staffList.map((s) => (s.id === staff.id ? staff : s))
@@ -656,37 +657,51 @@ export default function App() {
 
     setStaffList(updated);
     localStorage.setItem('bloodbank_staff', JSON.stringify(updated));
-    try {
-      await saveStaff(staff);
-    } catch (err) {
-      console.warn('Firestore write error:', err);
-    }
+
+    // Non-blocking Firestore write
+    saveStaff(staff).catch((err) => console.warn('Firestore write error:', err));
+
+    // Trigger Real-time Automated Backup Snapshot
+    createRealtimeBackupSnapshot(
+      'staff_change',
+      isNew
+        ? `เพิ่มรายชื่อเจ้าหน้าที่ใหม่ "${staff.thaiName}" (${staff.englishName})`
+        : `ปรับปรุงข้อมูลเจ้าหน้าที่ "${staff.thaiName}"`
+    ).catch(console.warn);
   };
 
   const handleDeleteStaff = async (staffId: string) => {
+    const target = staffList.find((s) => s.id === staffId);
     const updated = staffList.filter((s) => s.id !== staffId);
     setStaffList(updated);
     localStorage.setItem('bloodbank_staff', JSON.stringify(updated));
-    try {
-      await removeStaff(staffId);
-    } catch (err) {
-      console.warn('Firestore delete error:', err);
-    }
+
+    removeStaff(staffId).catch((err) => console.warn('Firestore delete error:', err));
+
+    // Trigger Real-time Snapshot
+    createRealtimeBackupSnapshot(
+      'staff_change',
+      `ลบเจ้าหน้าที่ "${target?.thaiName || staffId}" ออกจากระบบ`
+    ).catch(console.warn);
   };
 
   const handleReorderStaff = async (newOrderedList: Staff[]) => {
     const normalized = newOrderedList.map((s, idx) => ({ ...s, order: idx + 1 }));
     setStaffList(normalized);
     localStorage.setItem('bloodbank_staff', JSON.stringify(normalized));
-    try {
-      await replaceAllStaffInFirestore(normalized);
-    } catch (err) {
-      console.warn('Firestore reorder staff error:', err);
-    }
+
+    replaceAllStaffInFirestore(normalized).catch((err) => console.warn('Firestore reorder staff error:', err));
+
+    // Trigger Real-time Snapshot
+    createRealtimeBackupSnapshot(
+      'staff_change',
+      `จัดเรียงลำดับรายชื่อเจ้าหน้าที่ใหม่ (${normalized.length} คน)`
+    ).catch(console.warn);
   };
 
   // Shift Types CRUD
   const handleSaveShiftType = async (shift: ShiftType) => {
+    const isNew = !shiftTypes.some((s) => s.id === shift.id);
     const exists = shiftTypes.find((s) => s.id === shift.id);
     const updated = exists
       ? shiftTypes.map((s) => (s.id === shift.id ? shift : s))
@@ -694,22 +709,31 @@ export default function App() {
 
     setShiftTypes(updated);
     localStorage.setItem('bloodbank_shifts', JSON.stringify(updated));
-    try {
-      await saveShiftType(shift);
-    } catch (err) {
-      console.warn('Firestore write error:', err);
-    }
+
+    saveShiftType(shift).catch((err) => console.warn('Firestore write error:', err));
+
+    // Trigger Real-time Snapshot
+    createRealtimeBackupSnapshot(
+      'shift_change',
+      isNew
+        ? `เพิ่มรหัสเวรใหม่ "${shift.code}" (${shift.name} - ${shift.rate} บาท)`
+        : `ปรับปรุงรหัสเวร "${shift.code}" (${shift.name} - ${shift.rate} บาท)`
+    ).catch(console.warn);
   };
 
   const handleDeleteShiftType = async (id: string) => {
+    const target = shiftTypes.find((s) => s.id === id);
     const updated = shiftTypes.filter((s) => s.id !== id);
     setShiftTypes(updated);
     localStorage.setItem('bloodbank_shifts', JSON.stringify(updated));
-    try {
-      await removeShiftType(id);
-    } catch (err) {
-      console.warn('Firestore delete error:', err);
-    }
+
+    removeShiftType(id).catch((err) => console.warn('Firestore delete error:', err));
+
+    // Trigger Real-time Snapshot
+    createRealtimeBackupSnapshot(
+      'shift_change',
+      `ลบรหัสเวร "${target?.code || id}" ออกจากระบบ`
+    ).catch(console.warn);
   };
 
   // Apply Auto-Schedule
@@ -763,70 +787,106 @@ export default function App() {
     setClearModalRoom(roomId);
   };
 
-  // Execute clearing schedule without window.confirm
+  // Execute clearing schedule without freezing or hanging
   const handleExecuteClearSchedule = async (scope: 'current' | 'both') => {
     const targetRoom = clearModalRoom || (activeTab === 'donor' ? 'donor' : 'lab');
     const shouldClearLab = scope === 'both' || targetRoom === 'lab';
     const shouldClearDonor = scope === 'both' || targetRoom === 'donor';
     const updatedBy = currentUser?.englishName || 'admin';
 
-    // 1. Safety Realtime Snapshot BEFORE clearing
-    await createRealtimeBackupSnapshot(
-      'pre_clear',
-      `จุดปลอดภัยก่อนล้างตารางห้อง${scope === 'both' ? 'ทั้งหมด (Lab + รับบริจาค)' : targetRoom === 'lab' ? 'ปฏิบัติการ' : 'รับบริจาค'} (${formatYearMonthThai(yearMonth)})`
-    );
+    // Capture current snapshot state before clearing
+    const prevLab = labSchedule;
+    const prevDonor = donorSchedule;
 
+    const emptyLab: MonthSchedule = {
+      id: `lab_${yearMonth}`,
+      roomId: 'lab',
+      yearMonth,
+      assignments: {},
+      updatedAt: new Date().toISOString(),
+      updatedBy,
+    };
+
+    const emptyDonor: MonthSchedule = {
+      id: `donor_${yearMonth}`,
+      roomId: 'donor',
+      yearMonth,
+      assignments: {},
+      updatedAt: new Date().toISOString(),
+      updatedBy,
+    };
+
+    // 1. Optimistic Immediate Update - State & localStorage update instantly
     if (shouldClearLab) {
-      const emptyLab: MonthSchedule = {
-        id: `lab_${yearMonth}`,
-        roomId: 'lab',
-        yearMonth,
-        assignments: {},
-        updatedAt: new Date().toISOString(),
-        updatedBy,
-      };
       setLabSchedule(emptyLab);
       localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(emptyLab));
-      try {
-        await saveSchedule(emptyLab);
-      } catch (err) {
-        console.warn('Error clearing lab schedule in Firestore:', err);
-      }
     }
 
     if (shouldClearDonor) {
-      const emptyDonor: MonthSchedule = {
-        id: `donor_${yearMonth}`,
-        roomId: 'donor',
-        yearMonth,
-        assignments: {},
-        updatedAt: new Date().toISOString(),
-        updatedBy,
-      };
       setDonorSchedule(emptyDonor);
       localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(emptyDonor));
-      try {
-        await saveSchedule(emptyDonor);
-      } catch (err) {
-        console.warn('Error clearing donor schedule in Firestore:', err);
-      }
     }
 
-    // 2. Snapshot AFTER clearing
-    createRealtimeBackupSnapshot(
-      'manual',
-      `ล้างตารางเวร${scope === 'both' ? 'ทั้งหมด' : targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} เป็นตารางเปล่า (${formatYearMonthThai(yearMonth)})`
-    ).catch(console.warn);
-
+    // 2. Close modal & show success toast immediately
     setClearModalRoom(null);
     setSuccessToast(
       scope === 'both'
-        ? `ล้างตารางเวรทั้งห้องปฏิบัติการและห้องรับบริจาค ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว (มีจุดสำรองกู้คืนย้อนหลังได้ตลอด)`
-        : `ล้างตารางเวร${targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว (มีจุดสำรองกู้คืนย้อนหลังได้ตลอด)`
+        ? `ล้างตารางเวรทั้งห้องปฏิบัติการและห้องรับบริจาค ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว`
+        : `ล้างตารางเวร${targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} ประจำเดือน ${formatYearMonthThai(yearMonth)} เป็นตารางเปล่าเรียบร้อยแล้ว`
     );
     setTimeout(() => {
       setSuccessToast(null);
-    }, 4000);
+    }, 3500);
+
+    // 3. Background Persistence & Real-time Snapshot (wrapped in Promise.race with timeout so it NEVER hangs)
+    const backgroundTasks = async () => {
+      // Safety Realtime Snapshot of state before clearing
+      try {
+        await createRealtimeBackupSnapshot(
+          'pre_clear',
+          `จุดปลอดภัยก่อนล้างตารางห้อง${scope === 'both' ? 'ทั้งหมด (Lab + รับบริจาค)' : targetRoom === 'lab' ? 'ปฏิบัติการ' : 'รับบริจาค'} (${formatYearMonthThai(yearMonth)})`,
+          prevLab,
+          prevDonor
+        );
+      } catch (err) {
+        console.warn('Pre-clear backup snapshot warning:', err);
+      }
+
+      // Save to Firestore with timeout
+      if (shouldClearLab) {
+        try {
+          await saveSchedule(emptyLab);
+        } catch (err) {
+          console.warn('Error clearing lab schedule in Firestore:', err);
+        }
+      }
+
+      if (shouldClearDonor) {
+        try {
+          await saveSchedule(emptyDonor);
+        } catch (err) {
+          console.warn('Error clearing donor schedule in Firestore:', err);
+        }
+      }
+
+      // Snapshot after clearing
+      try {
+        await createRealtimeBackupSnapshot(
+          'manual',
+          `ล้างตารางเวร${scope === 'both' ? 'ทั้งหมด' : targetRoom === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} เป็นตารางเปล่า (${formatYearMonthThai(yearMonth)})`,
+          shouldClearLab ? emptyLab : prevLab,
+          shouldClearDonor ? emptyDonor : prevDonor
+        );
+      } catch (err) {
+        console.warn('Post-clear backup snapshot warning:', err);
+      }
+    };
+
+    // Run background tasks with a 2.5s maximum timeout so UI never blocks
+    await Promise.race([
+      backgroundTasks(),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]).catch(console.warn);
   };
 
   // Login Gate: Show LoginPage before entering the schedule page
@@ -858,6 +918,9 @@ export default function App() {
         onOpenStaffModal={() => setIsStaffModalOpen(true)}
         onOpenShiftModal={() => setIsShiftModalOpen(true)}
         onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
+        onOpenRealtimeBackupModal={() => setIsRealtimeBackupModalOpen(true)}
+        lastBackupTime={lastBackupTime}
+        isSavingBackup={isSavingBackup}
         isGoogleDriveConnected={Boolean(googleWorkspaceUser)}
       />
 
@@ -879,6 +942,7 @@ export default function App() {
             onOpenStaffModal={() => setIsStaffModalOpen(true)}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
             onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
+            onOpenRealtimeBackupModal={() => setIsRealtimeBackupModalOpen(true)}
             onClearSchedule={() => handleOpenClearModal('lab')}
           />
         )}
@@ -899,6 +963,7 @@ export default function App() {
             onOpenStaffModal={() => setIsStaffModalOpen(true)}
             onOpenShiftModal={() => setIsShiftModalOpen(true)}
             onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
+            onOpenRealtimeBackupModal={() => setIsRealtimeBackupModalOpen(true)}
             onClearSchedule={() => handleOpenClearModal('donor')}
           />
         )}
@@ -1034,6 +1099,26 @@ export default function App() {
         currentRoomId={clearModalRoom || (activeTab === 'donor' ? 'donor' : 'lab')}
         monthThai={formatYearMonthThai(yearMonth)}
         onConfirmClear={handleExecuteClearSchedule}
+      />
+
+      {/* Real-time Automated Backup & History Modal */}
+      <RealtimeBackupModal
+        isOpen={isRealtimeBackupModalOpen}
+        onClose={() => setIsRealtimeBackupModalOpen(false)}
+        backups={realtimeBackups}
+        currentLabSchedule={labSchedule}
+        currentDonorSchedule={donorSchedule}
+        staffList={staffList}
+        shiftTypes={shiftTypes}
+        currentUser={currentUser}
+        lastBackupTime={lastBackupTime}
+        isSavingBackup={isSavingBackup}
+        onTriggerManualBackup={async (desc) => {
+          await createRealtimeBackupSnapshot('manual', desc);
+        }}
+        onRestoreBackup={handleRestoreBackup}
+        onDeleteBackup={handleDeleteBackup}
+        onImportBackupJson={handleImportBackupJson}
       />
 
       {/* Success Toast Notification */}
