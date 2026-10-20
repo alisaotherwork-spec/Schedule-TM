@@ -13,6 +13,7 @@ import {
   subscribeShiftTypes,
   saveShiftType,
   removeShiftType,
+  replaceAllShiftTypesInFirestore,
   subscribeSchedule,
   saveSchedule,
   saveRealtimeBackupSnapshot,
@@ -106,7 +107,11 @@ export default function App() {
   const [staffList, setStaffList] = useState<Staff[]>(() => {
     try {
       const saved = localStorage.getItem('bloodbank_staff');
-      return saved ? JSON.parse(saved) : INITIAL_STAFF;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return INITIAL_STAFF;
     } catch {
       return INITIAL_STAFF;
     }
@@ -115,7 +120,11 @@ export default function App() {
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>(() => {
     try {
       const saved = localStorage.getItem('bloodbank_shifts');
-      return saved ? JSON.parse(saved) : INITIAL_SHIFT_TYPES;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return INITIAL_SHIFT_TYPES;
     } catch {
       return INITIAL_SHIFT_TYPES;
     }
@@ -204,7 +213,7 @@ export default function App() {
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
-              if (parsed.length > 0 && !parsed.some((s: Staff) => s.id === 'staff-somchai')) {
+              if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some((s: Staff) => s.id === 'staff-somchai')) {
                 staffToUse = parsed;
               }
             } catch {}
@@ -216,6 +225,18 @@ export default function App() {
       },
       () => {
         // Fallback to local data
+        const saved = localStorage.getItem('bloodbank_staff');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setStaffList(parsed);
+              return;
+            }
+          } catch {}
+        }
+        setStaffList(INITIAL_STAFF);
+        localStorage.setItem('bloodbank_staff', JSON.stringify(INITIAL_STAFF));
       }
     );
     return () => unsubscribe();
@@ -223,28 +244,44 @@ export default function App() {
 
   // Sync with Firestore for Shift Types
   useEffect(() => {
+    let hasMigratedShifts = false;
     const unsubscribe = subscribeShiftTypes(
       (types) => {
         if (types && types.length > 0) {
           setShiftTypes(types);
           localStorage.setItem('bloodbank_shifts', JSON.stringify(types));
-        } else {
-          // Initialize seeds into Firestore if empty
+        } else if (!hasMigratedShifts) {
+          hasMigratedShifts = true;
           const saved = localStorage.getItem('bloodbank_shifts');
+          let shiftsToUse = INITIAL_SHIFT_TYPES;
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
-              if (parsed.length > 0) {
-                setShiftTypes(parsed);
-                parsed.forEach((st: ShiftType) => saveShiftType(st).catch(console.warn));
-                return;
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                shiftsToUse = parsed;
               }
             } catch {}
           }
-          INITIAL_SHIFT_TYPES.forEach((st) => saveShiftType(st).catch(console.warn));
+          setShiftTypes(shiftsToUse);
+          localStorage.setItem('bloodbank_shifts', JSON.stringify(shiftsToUse));
+          replaceAllShiftTypesInFirestore(shiftsToUse).catch(console.warn);
         }
       },
-      () => {}
+      () => {
+        // Fallback
+        const saved = localStorage.getItem('bloodbank_shifts');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setShiftTypes(parsed);
+              return;
+            }
+          } catch {}
+        }
+        setShiftTypes(INITIAL_SHIFT_TYPES);
+        localStorage.setItem('bloodbank_shifts', JSON.stringify(INITIAL_SHIFT_TYPES));
+      }
     );
     return () => unsubscribe();
   }, []);
@@ -782,6 +819,48 @@ export default function App() {
     await handleSaveStaff(updatedStaff);
   };
 
+  // Restore Initial Staff List (All 31 official hospital staff)
+  const handleRestoreInitialStaff = async () => {
+    setStaffList(INITIAL_STAFF);
+    localStorage.setItem('bloodbank_staff', JSON.stringify(INITIAL_STAFF));
+    try {
+      await replaceAllStaffInFirestore(INITIAL_STAFF);
+    } catch (err) {
+      console.warn('Restore staff Firestore warning:', err);
+    }
+    createRealtimeBackupSnapshot(
+      'staff_change',
+      'ดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด 31 ท่านกลับมา'
+    ).catch(console.warn);
+    setSuccessToast('ดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด 31 ท่านกลับมาเรียบร้อยแล้ว');
+    setTimeout(() => setSuccessToast(null), 3500);
+  };
+
+  // Restore Initial Shift Types (Standard shift codes & compensation rates)
+  const handleRestoreInitialShiftTypes = async () => {
+    setShiftTypes(INITIAL_SHIFT_TYPES);
+    localStorage.setItem('bloodbank_shifts', JSON.stringify(INITIAL_SHIFT_TYPES));
+    try {
+      await replaceAllShiftTypesInFirestore(INITIAL_SHIFT_TYPES);
+    } catch (err) {
+      console.warn('Restore shift types Firestore warning:', err);
+    }
+    createRealtimeBackupSnapshot(
+      'shift_change',
+      'ดึงรหัสเวรและอัตราค่าตอบแทนเริ่มต้นทั้งหมดกลับมา'
+    ).catch(console.warn);
+    setSuccessToast('ดึงรหัสเวรและอัตราค่าตอบแทนเริ่มต้นทั้งหมดกลับมาเรียบร้อยแล้ว');
+    setTimeout(() => setSuccessToast(null), 3500);
+  };
+
+  // Restore All Initial Data (Both Staff and Shift Types)
+  const handleRestoreAllInitialData = async () => {
+    await handleRestoreInitialStaff();
+    await handleRestoreInitialShiftTypes();
+    setSuccessToast('ดึงรายชื่อเจ้าหน้าที่ 31 ท่าน และรหัสเวรทั้งหมดกลับมาเรียบร้อยแล้ว');
+    setTimeout(() => setSuccessToast(null), 4000);
+  };
+
   // Open Clear Schedule Modal
   const handleOpenClearModal = (roomId: RoomId) => {
     setClearModalRoom(roomId);
@@ -944,6 +1023,7 @@ export default function App() {
             onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
             onOpenRealtimeBackupModal={() => setIsRealtimeBackupModalOpen(true)}
             onClearSchedule={() => handleOpenClearModal('lab')}
+            onRestoreInitialData={handleRestoreAllInitialData}
           />
         )}
 
@@ -965,6 +1045,7 @@ export default function App() {
             onOpenGoogleDriveModal={() => setIsDriveModalOpen(true)}
             onOpenRealtimeBackupModal={() => setIsRealtimeBackupModalOpen(true)}
             onClearSchedule={() => handleOpenClearModal('donor')}
+            onRestoreInitialData={handleRestoreAllInitialData}
           />
         )}
 
@@ -1005,6 +1086,7 @@ export default function App() {
             onDeleteStaff={handleDeleteStaff}
             onReorderStaff={handleReorderStaff}
             onResetSubAdminPassword={handleResetSubAdminPassword}
+            onRestoreInitialStaff={handleRestoreInitialStaff}
           />
         )}
 
@@ -1017,6 +1099,7 @@ export default function App() {
             shiftTypes={shiftTypes}
             onSaveShiftType={handleSaveShiftType}
             onDeleteShiftType={handleDeleteShiftType}
+            onRestoreInitialShiftTypes={handleRestoreInitialShiftTypes}
           />
         )}
       </main>
@@ -1057,6 +1140,7 @@ export default function App() {
         onDeleteStaff={handleDeleteStaff}
         onReorderStaff={handleReorderStaff}
         onResetSubAdminPassword={handleResetSubAdminPassword}
+        onRestoreInitialStaff={handleRestoreInitialStaff}
       />
 
       <ShiftManagementModal
@@ -1065,6 +1149,7 @@ export default function App() {
         shiftTypes={shiftTypes}
         onSaveShiftType={handleSaveShiftType}
         onDeleteShiftType={handleDeleteShiftType}
+        onRestoreInitialShiftTypes={handleRestoreInitialShiftTypes}
       />
 
       <AutoScheduleModal
@@ -1119,6 +1204,7 @@ export default function App() {
         onRestoreBackup={handleRestoreBackup}
         onDeleteBackup={handleDeleteBackup}
         onImportBackupJson={handleImportBackupJson}
+        onRestoreInitialData={handleRestoreAllInitialData}
       />
 
       {/* Success Toast Notification */}

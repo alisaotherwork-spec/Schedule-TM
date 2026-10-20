@@ -14,6 +14,7 @@ interface StaffManagementModalProps {
   onDeleteStaff: (staffId: string) => Promise<void>;
   onReorderStaff?: (newStaffList: Staff[]) => Promise<void>;
   onResetSubAdminPassword?: (staffId: string) => Promise<void>;
+  onRestoreInitialStaff?: () => Promise<void>;
 }
 
 export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
@@ -26,6 +27,7 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   onDeleteStaff,
   onReorderStaff,
   onResetSubAdminPassword,
+  onRestoreInitialStaff,
 }) => {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [thaiName, setThaiName] = useState('');
@@ -40,6 +42,8 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [confirmingRestore, setConfirmingRestore] = useState(false);
   const [deletingStaff, setDeletingStaff] = useState<{ id: string; name: string } | null>(null);
   const [resettingStaff, setResettingStaff] = useState<{ id: string; name: string } | null>(null);
 
@@ -325,13 +329,27 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
             </div>
           </div>
           {!editingStaff && (
-            <button
-              onClick={handleStartAdd}
-              className="mr-8 py-2 px-3.5 bg-[#4ADE80] hover:bg-[#22C55E] text-stone-900 text-xs font-semibold rounded-xl border border-[#16A34A] shadow-[1px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>เพิ่มเจ้าหน้าที่ใหม่</span>
-            </button>
+            <div className="flex items-center gap-2 mr-8">
+              {onRestoreInitialStaff && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRestore(true)}
+                  disabled={isRestoring}
+                  className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  title="ดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด 31 ท่านกลับมา"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                  <span>{isRestoring ? 'กำลังดึงข้อมูล...' : 'ดึงรายชื่อตั้งต้นกลับมา (31 ท่าน)'}</span>
+                </button>
+              )}
+              <button
+                onClick={handleStartAdd}
+                className="py-2 px-3.5 bg-[#4ADE80] hover:bg-[#22C55E] text-stone-900 text-xs font-semibold rounded-xl border border-[#16A34A] shadow-[1px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>เพิ่มเจ้าหน้าที่ใหม่</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -734,6 +752,54 @@ export const StaffManagementModal: React.FC<StaffManagementModalProps> = ({
                   className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs"
                 >
                   ยืนยันรีเซ็ต
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Restore Initial Staff Confirmation Dialog */}
+        {confirmingRestore && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-lg p-5 max-w-md w-full animate-scaleUp">
+              <div className="flex items-center gap-2 text-amber-700 font-bold text-sm mb-2">
+                <RotateCcw className="w-4 h-4" />
+                <h4>ยืนยันดึงรายชื่อเจ้าหน้าที่ตั้งต้น</h4>
+              </div>
+              <p className="text-xs text-stone-600 leading-relaxed mb-4">
+                คุณต้องการดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด <strong>31 ท่าน</strong> (นักเทคนิคการแพทย์ 14 ท่าน และพนักงานผู้ช่วยฯ 17 ท่าน) พร้อมตำแหน่งและสิทธิ์มาตรฐานกลับมาใช่หรือไม่?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRestore(false)}
+                  disabled={isRestoring}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={isRestoring}
+                  onClick={async () => {
+                    if (onRestoreInitialStaff) {
+                      setIsRestoring(true);
+                      try {
+                        await onRestoreInitialStaff();
+                        setConfirmingRestore(false);
+                        setNotice('ดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด 31 ท่านกลับมาเรียบร้อยแล้ว');
+                        setTimeout(() => setNotice(null), 4000);
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setIsRestoring(false);
+                      }
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{isRestoring ? 'กำลังดึงข้อมูล...' : 'ยืนยันดึงรายชื่อ 31 ท่าน'}</span>
                 </button>
               </div>
             </div>

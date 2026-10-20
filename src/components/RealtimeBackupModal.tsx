@@ -33,6 +33,7 @@ interface RealtimeBackupModalProps {
   onRestoreBackup: (snapshot: BackupSnapshot) => Promise<void>;
   onDeleteBackup: (backupId: string) => Promise<void>;
   onImportBackupJson: (data: any) => Promise<void>;
+  onRestoreInitialData?: () => Promise<void>;
 }
 
 export const RealtimeBackupModal: React.FC<RealtimeBackupModalProps> = ({
@@ -50,6 +51,7 @@ export const RealtimeBackupModal: React.FC<RealtimeBackupModalProps> = ({
   onRestoreBackup,
   onDeleteBackup,
   onImportBackupJson,
+  onRestoreInitialData,
 }) => {
   const [selectedSnapshot, setSelectedSnapshot] = useState<BackupSnapshot | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -306,8 +308,26 @@ export const RealtimeBackupModal: React.FC<RealtimeBackupModalProps> = ({
             </button>
           </div>
 
-          {/* JSON Export and Import buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* JSON Export, Import, and Restore Initial Defaults buttons */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onRestoreInitialData && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm('คุณต้องการดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด 31 ท่าน และรหัสเวรมาตรฐานทั้งหมดกลับมาใช่หรือไม่?')) {
+                    await onRestoreInitialData();
+                    setNotice('ดึงรายชื่อเจ้าหน้าที่ (31 ท่าน) และรหัสเวรตั้งต้นทั้งหมดกลับมาเรียบร้อยแล้ว');
+                    setTimeout(() => setNotice(null), 4000);
+                  }
+                }}
+                className="py-1.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="ดึงรายชื่อเริ่มต้น 31 ท่านและรหัสเวรตั้งต้นทั้งหมดกลับมา"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                <span>ดึงข้อมูลตั้งต้น (31 ท่าน+รหัสเวร)</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleExportJson}

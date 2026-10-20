@@ -265,6 +265,23 @@ export const removeShiftType = async (shiftTypeId: string) => {
   }
 };
 
+export const replaceAllShiftTypesInFirestore = async (newShiftTypes: ShiftType[]) => {
+  const path = 'shiftTypes';
+  try {
+    const existingSnap = await getDocs(collection(db, path));
+    const deletePromises = existingSnap.docs.map((d) => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+
+    const savePromises = newShiftTypes.map((st) => {
+      const cleanData = sanitizeForFirestore(st);
+      return setDoc(doc(db, 'shiftTypes', st.id), cleanData);
+    });
+    await Promise.all(savePromises);
+  } catch (err) {
+    console.warn('Failed to replaceAllShiftTypesInFirestore:', err);
+  }
+};
+
 export const subscribeSchedule = (
   roomId: string,
   yearMonth: string,

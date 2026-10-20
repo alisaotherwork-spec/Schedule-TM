@@ -3,7 +3,7 @@ import { Staff, ShiftType, RoomId, MonthSchedule, UserSession, StaffCategory } f
 import { getDaysInMonth, getDayOfWeek, THAI_DAYS_SHORT, isWeekend, formatYearMonthThai } from '../utils/dateUtils';
 import { isShiftAllowedForStaff, getStaffPositionAbbr, STANDARD_POSITIONS } from '../utils/positionUtils';
 import { exportElementToPdf } from '../utils/pdfExport';
-import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser, Move, Hand, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Maximize2, Minimize2, Calendar, ShieldCheck } from 'lucide-react';
+import { Download, Printer, Wand2, Plus, Lock, Check, Info, Sparkles, UserCheck, DollarSign, Cloud, Eraser, Move, Hand, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Maximize2, Minimize2, Calendar, ShieldCheck, RotateCcw } from 'lucide-react';
 import { CuteAlien, CuteAstronaut, PaperStar, CuteSpaceBarStrip, CuteMiniSpaceCluster, PaperSpaceship, PaperSaturn } from './CuteSpaceDecorations';
 
 interface ScheduleGridProps {
@@ -20,6 +20,7 @@ interface ScheduleGridProps {
   onOpenGoogleDriveModal?: () => void;
   onOpenRealtimeBackupModal?: () => void;
   onClearSchedule?: () => void;
+  onRestoreInitialData?: () => Promise<void>;
 }
 
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
@@ -36,6 +37,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   onOpenGoogleDriveModal,
   onOpenRealtimeBackupModal,
   onClearSchedule,
+  onRestoreInitialData,
 }) => {
   const [selectedCell, setSelectedCell] = useState<{ staffId: string; day: number; staffName: string } | null>(null);
   const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
@@ -743,6 +745,23 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               )}
             </tbody>
           </table>
+          {activeStaff.length === 0 && (
+            <div className="p-8 text-center bg-white border-t border-[#E7DFD5] space-y-3">
+              <CuteAlien size={44} className="mx-auto" />
+              <p className="font-bold text-stone-700 text-sm">ไม่พบรายชื่อเจ้าหน้าที่ในแผนกนี้</p>
+              <p className="text-xs text-stone-500">คุณสามารถดึงรายชื่อเจ้าหน้าที่เริ่มต้นทั้งหมด 31 ท่าน และรหัสเวรกลับมาได้ทันที</p>
+              {onRestoreInitialData && (
+                <button
+                  type="button"
+                  onClick={onRestoreInitialData}
+                  className="py-2.5 px-5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>ดึงรายชื่อเจ้าหน้าที่ (31 ท่าน) และรหัสเวรตั้งต้นกลับมา</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

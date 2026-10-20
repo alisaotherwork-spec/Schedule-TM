@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShiftType, ShiftPeriod, PositionAbbr } from '../types';
 import { ALL_POSITION_ABBRS, STANDARD_POSITIONS } from '../utils/positionUtils';
-import { X, Plus, Trash2, Edit2, Check, Clock, DollarSign, Tag, Users } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Check, Clock, DollarSign, Tag, Users, RotateCcw } from 'lucide-react';
 import { CuteAlien, PaperStar } from './CuteSpaceDecorations';
 
 interface ShiftManagementModalProps {
@@ -11,6 +11,7 @@ interface ShiftManagementModalProps {
   shiftTypes: ShiftType[];
   onSaveShiftType: (shift: ShiftType) => Promise<void>;
   onDeleteShiftType: (id: string) => Promise<void>;
+  onRestoreInitialShiftTypes?: () => Promise<void>;
 }
 
 const COLOR_OPTIONS = [
@@ -41,6 +42,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   shiftTypes = [],
   onSaveShiftType,
   onDeleteShiftType,
+  onRestoreInitialShiftTypes,
 }) => {
   const safeShiftTypes = (shiftTypes || []).filter((s): s is ShiftType => Boolean(s && s.id));
   const [editingShift, setEditingShift] = useState<ShiftType | null>(null);
@@ -56,6 +58,8 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [confirmingRestore, setConfirmingRestore] = useState(false);
 
   // Quick Inline Rate Editor in Table
   const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
@@ -346,13 +350,27 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
             </div>
           </div>
           {!editingShift && (
-            <button
-              onClick={handleStartAdd}
-              className="mr-8 py-2 px-3.5 bg-[#F28C38] hover:bg-[#E57A24] text-white text-xs font-semibold rounded-xl border border-[#D56B16] shadow-[1px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>เพิ่มรหัสเวรใหม่</span>
-            </button>
+            <div className="flex items-center gap-2 mr-8">
+              {onRestoreInitialShiftTypes && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRestore(true)}
+                  disabled={isRestoring}
+                  className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  title="ดึงรหัสเวรและอัตราค่าตอบแทนเริ่มต้นทั้งหมดกลับมา"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                  <span>{isRestoring ? 'กำลังดึงข้อมูล...' : 'ดึงค่าเวรตั้งต้นกลับมา'}</span>
+                </button>
+              )}
+              <button
+                onClick={handleStartAdd}
+                className="py-2 px-3.5 bg-[#F28C38] hover:bg-[#E57A24] text-white text-xs font-semibold rounded-xl border border-[#D56B16] shadow-[1px_2px_0px_rgba(70,60,50,0.15)] flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>เพิ่มรหัสเวรใหม่</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -934,6 +952,54 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                   className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs"
                 >
                   ยืนยันลบ
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Restore Initial Shift Types Confirmation Dialog */}
+        {confirmingRestore && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-[#FFFDF9] rounded-2xl border-2 border-[#E7DFD5] shadow-lg p-5 max-w-md w-full animate-scaleUp">
+              <div className="flex items-center gap-2 text-amber-700 font-bold text-sm mb-2">
+                <RotateCcw className="w-4 h-4" />
+                <h4>ยืนยันดึงรหัสเวรและค่าตอบแทนตั้งต้น</h4>
+              </div>
+              <p className="text-xs text-stone-600 leading-relaxed mb-4">
+                คุณต้องการดึงรหัสเวรมาตรฐานทั้งหมด (MORN, EVN1, NGHT, LAB1, LAB2, BD01, BD02, PART, OFFF) พร้อมอัตราค่าตอบแทนกลับมาสู่ระบบใช่หรือไม่?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRestore(false)}
+                  disabled={isRestoring}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={isRestoring}
+                  onClick={async () => {
+                    if (onRestoreInitialShiftTypes) {
+                      setIsRestoring(true);
+                      try {
+                        await onRestoreInitialShiftTypes();
+                        setConfirmingRestore(false);
+                        setNotice('ดึงรหัสเวรและอัตราค่าตอบแทนเริ่มต้นทั้งหมดกลับมาเรียบร้อยแล้ว');
+                        setTimeout(() => setNotice(null), 4000);
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setIsRestoring(false);
+                      }
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{isRestoring ? 'กำลังดึงข้อมูล...' : 'ยืนยันดึงรหัสเวรตั้งต้น'}</span>
                 </button>
               </div>
             </div>
