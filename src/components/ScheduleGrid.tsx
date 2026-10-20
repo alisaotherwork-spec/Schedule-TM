@@ -381,10 +381,10 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               <button
                 onClick={onOpenAutoSchedule}
                 className="py-2 px-3.5 bg-[#4ADE80] hover:bg-[#22C55E] text-stone-900 font-bold text-xs rounded-xl border border-[#16A34A] shadow-[1px_2px_0px_rgba(70,60,50,0.12)] flex items-center gap-1.5 transition-all cursor-pointer"
-                title="จัดเวรอัตโนมัติ (หมุนเวียนต่อจากคนที่ 1 ของแต่ละตำแหน่ง)"
+                title="จัดเวรอัตโนมัติ (เรียงไล่ลงมาจากซ้ายไปขวา จากคนแรกถึงคนสุดท้าย วนซ้ำจนครบเดือน)"
               >
                 <Sparkles className="w-3.5 h-3.5 text-stone-900" />
-                <span>จัดเวรอัตโนมัติ (ต่อจากคนที่ 1)</span>
+                <span>จัดเวรอัตโนมัติ (เรียงซ้ายไปขวา)</span>
               </button>
 
               {onClearSchedule && (

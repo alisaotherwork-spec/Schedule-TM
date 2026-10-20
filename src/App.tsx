@@ -174,7 +174,34 @@ export default function App() {
     }
   });
   const [isSavingBackup, setIsSavingBackup] = useState(false);
-  const backupDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Monotonic Timestamp & Local Schedule Refs (Guards against stale remote snapshots & prevents rollback)
+  const localEditTimestampsRef = React.useRef<{ [key: string]: number }>({});
+  const localSchedulesRef = React.useRef<{ lab: MonthSchedule; donor: MonthSchedule }>({
+    lab: labSchedule,
+    donor: donorSchedule,
+  });
+
+  useEffect(() => {
+    localSchedulesRef.current.lab = labSchedule;
+  }, [labSchedule]);
+
+  useEffect(() => {
+    localSchedulesRef.current.donor = donorSchedule;
+  }, [donorSchedule]);
+
+  // Helper to count non-off shift assignments in a schedule
+  const countScheduleAssignments = (sched: MonthSchedule | null | undefined): number => {
+    if (!sched || !sched.assignments) return 0;
+    let count = 0;
+    Object.values(sched.assignments).forEach((dayMap) => {
+      if (!dayMap) return;
+      Object.values(dayMap).forEach((code) => {
+        if (code && code !== 'OFFF') count++;
+      });
+    });
+    return count;
+  };
 
   // Subscribe to real-time cloud backups
   useEffect(() => {
@@ -286,43 +313,84 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync with Firestore for Lab Schedule (safely preserves existing schedules)
+  // Sync with Firestore for Lab Schedule (safely preserves latest edits and never reverts)
   useEffect(() => {
     // 1. Immediately load existing local copy if available
     try {
       const saved = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
       if (saved) {
         const parsed: MonthSchedule = JSON.parse(saved);
-        setLabSchedule(parsed);
-      } else {
-        const initial = generateInitialSchedule('lab', yearMonth);
-        setLabSchedule(initial);
+        if (parsed && parsed.assignments) {
+          setLabSchedule(parsed);
+          localSchedulesRef.current.lab = parsed;
+        }
       }
     } catch {}
 
     // 2. Subscribe to Firestore
+    const scheduleKey = `lab_${yearMonth}`;
     const unsubscribe = subscribeSchedule(
       'lab',
       yearMonth,
-      (sched) => {
-        if (sched && sched.assignments) {
-          // Firestore has existing schedule: keep it and never overwrite!
-          setLabSchedule(sched);
-          localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(sched));
+      (incomingSched) => {
+        const currentLocal = localSchedulesRef.current.lab;
+        const lastEditTime = localEditTimestampsRef.current[scheduleKey] || 0;
+        const timeSinceLastLocalEdit = Date.now() - lastEditTime;
+
+        // If local was edited within the last 10 seconds, local edits are protected against stale snapshots
+        if (timeSinceLastLocalEdit < 10000) {
+          if (!incomingSched || countScheduleAssignments(incomingSched) < countScheduleAssignments(currentLocal)) {
+            saveSchedule(currentLocal).catch(console.warn);
+          }
+          return;
+        }
+
+        if (incomingSched && incomingSched.assignments) {
+          const incomingCount = countScheduleAssignments(incomingSched);
+          const localCount = countScheduleAssignments(currentLocal);
+
+          // Never overwrite populated local schedule with an empty remote schedule!
+          if (incomingCount === 0 && localCount > 0) {
+            saveSchedule(currentLocal).catch(console.warn);
+            return;
+          }
+
+          const incomingTime = incomingSched.updatedAt ? new Date(incomingSched.updatedAt).getTime() : 0;
+          const localTime = currentLocal?.updatedAt ? new Date(currentLocal.updatedAt).getTime() : 0;
+
+          // Only accept incoming if it is newer or has at least as many assignments
+          if (incomingTime >= localTime || incomingCount >= localCount) {
+            setLabSchedule(incomingSched);
+            localSchedulesRef.current.lab = incomingSched;
+            localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(incomingSched));
+          } else {
+            // Local is newer: preserve local and sync to Firestore
+            saveSchedule(currentLocal).catch(console.warn);
+          }
         } else {
-          // If not in Firestore yet, check localStorage to see if user has arranged schedule
+          // Firestore document missing or null: DO NOT wipe local data!
           const cached = localStorage.getItem(`bloodbank_sched_lab_${yearMonth}`);
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
-              setLabSchedule(parsed);
-              saveSchedule(parsed).catch(console.warn);
-              return;
+              if (countScheduleAssignments(parsed) > 0) {
+                setLabSchedule(parsed);
+                localSchedulesRef.current.lab = parsed;
+                saveSchedule(parsed).catch(console.warn);
+                return;
+              }
             } catch {}
           }
-          // Only if completely new and unscheduled, initialize as blank schedule
+
+          if (countScheduleAssignments(currentLocal) > 0) {
+            saveSchedule(currentLocal).catch(console.warn);
+            return;
+          }
+
+          // Only if genuinely blank new month
           const initial = generateInitialSchedule('lab', yearMonth);
           setLabSchedule(initial);
+          localSchedulesRef.current.lab = initial;
           localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(initial));
           saveSchedule(initial).catch(console.warn);
         }
@@ -332,43 +400,82 @@ export default function App() {
     return () => unsubscribe();
   }, [yearMonth]);
 
-  // Sync with Firestore for Donor Schedule (safely preserves existing schedules)
+  // Sync with Firestore for Donor Schedule (safely preserves latest edits and never reverts)
   useEffect(() => {
     // 1. Immediately load existing local copy if available
     try {
       const saved = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
       if (saved) {
         const parsed: MonthSchedule = JSON.parse(saved);
-        setDonorSchedule(parsed);
-      } else {
-        const initial = generateInitialSchedule('donor', yearMonth);
-        setDonorSchedule(initial);
+        if (parsed && parsed.assignments) {
+          setDonorSchedule(parsed);
+          localSchedulesRef.current.donor = parsed;
+        }
       }
     } catch {}
 
     // 2. Subscribe to Firestore
+    const scheduleKey = `donor_${yearMonth}`;
     const unsubscribe = subscribeSchedule(
       'donor',
       yearMonth,
-      (sched) => {
-        if (sched && sched.assignments) {
-          // Firestore has existing schedule: keep it and never overwrite!
-          setDonorSchedule(sched);
-          localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(sched));
+      (incomingSched) => {
+        const currentLocal = localSchedulesRef.current.donor;
+        const lastEditTime = localEditTimestampsRef.current[scheduleKey] || 0;
+        const timeSinceLastLocalEdit = Date.now() - lastEditTime;
+
+        // If local was edited within the last 10 seconds, local edits are protected against stale snapshots
+        if (timeSinceLastLocalEdit < 10000) {
+          if (!incomingSched || countScheduleAssignments(incomingSched) < countScheduleAssignments(currentLocal)) {
+            saveSchedule(currentLocal).catch(console.warn);
+          }
+          return;
+        }
+
+        if (incomingSched && incomingSched.assignments) {
+          const incomingCount = countScheduleAssignments(incomingSched);
+          const localCount = countScheduleAssignments(currentLocal);
+
+          // Never overwrite populated local schedule with an empty remote schedule!
+          if (incomingCount === 0 && localCount > 0) {
+            saveSchedule(currentLocal).catch(console.warn);
+            return;
+          }
+
+          const incomingTime = incomingSched.updatedAt ? new Date(incomingSched.updatedAt).getTime() : 0;
+          const localTime = currentLocal?.updatedAt ? new Date(currentLocal.updatedAt).getTime() : 0;
+
+          if (incomingTime >= localTime || incomingCount >= localCount) {
+            setDonorSchedule(incomingSched);
+            localSchedulesRef.current.donor = incomingSched;
+            localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(incomingSched));
+          } else {
+            // Local is newer: preserve local and sync to Firestore
+            saveSchedule(currentLocal).catch(console.warn);
+          }
         } else {
-          // If not in Firestore yet, check localStorage to see if user has arranged schedule
+          // Firestore document missing or null: DO NOT wipe local data!
           const cached = localStorage.getItem(`bloodbank_sched_donor_${yearMonth}`);
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
-              setDonorSchedule(parsed);
-              saveSchedule(parsed).catch(console.warn);
-              return;
+              if (countScheduleAssignments(parsed) > 0) {
+                setDonorSchedule(parsed);
+                localSchedulesRef.current.donor = parsed;
+                saveSchedule(parsed).catch(console.warn);
+                return;
+              }
             } catch {}
           }
-          // Only if completely new and unscheduled, initialize as blank schedule
+
+          if (countScheduleAssignments(currentLocal) > 0) {
+            saveSchedule(currentLocal).catch(console.warn);
+            return;
+          }
+
           const initial = generateInitialSchedule('donor', yearMonth);
           setDonorSchedule(initial);
+          localSchedulesRef.current.donor = initial;
           localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(initial));
           saveSchedule(initial).catch(console.warn);
         }
@@ -497,8 +604,8 @@ export default function App() {
     overrideDonor?: MonthSchedule
   ) => {
     setIsSavingBackup(true);
-    const targetLab = overrideLab || labSchedule;
-    const targetDonor = overrideDonor || donorSchedule;
+    const targetLab = overrideLab || localSchedulesRef.current.lab || labSchedule;
+    const targetDonor = overrideDonor || localSchedulesRef.current.donor || donorSchedule;
     const now = new Date();
     const formattedThai = formatDateTimeThai(now);
     const snapshotId = `backup_${now.getTime()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -529,12 +636,23 @@ export default function App() {
       shiftTypes,
     };
 
+    // 1. Synchronously update local backup list & last backup time so it's instantly preserved
+    setRealtimeBackups((prev) => [snapshot, ...prev.filter((b) => b.id !== snapshot.id)].slice(0, 80));
+    setLastBackupTime(formattedThai);
+    try {
+      localStorage.setItem('bloodbank_last_backup_time', formattedThai);
+      const localRaw = localStorage.getItem('bloodbank_realtime_backups');
+      const localList: BackupSnapshot[] = localRaw ? JSON.parse(localRaw) : [];
+      const updatedLocal = [snapshot, ...localList.filter((b) => b.id !== snapshot.id)].slice(0, 80);
+      localStorage.setItem('bloodbank_realtime_backups', JSON.stringify(updatedLocal));
+    } catch (e) {
+      console.warn('Local backup cache warning:', e);
+    }
+
     try {
       await saveRealtimeBackupSnapshot(snapshot);
-      setLastBackupTime(formattedThai);
-      localStorage.setItem('bloodbank_last_backup_time', formattedThai);
     } catch (err) {
-      console.warn('Realtime backup snapshot error:', err);
+      console.warn('Realtime backup snapshot cloud save error:', err);
     } finally {
       setIsSavingBackup(false);
     }
@@ -545,13 +663,18 @@ export default function App() {
     await createRealtimeBackupSnapshot('realtime_edit', 'จุดสำรองความปลอดภัยก่อนกู้คืนข้อมูล');
 
     // 2. Restore schedules
+    const nowMs = Date.now();
     if (snapshot.labSchedule) {
+      localEditTimestampsRef.current[`lab_${snapshot.yearMonth}`] = nowMs;
       setLabSchedule(snapshot.labSchedule);
+      localSchedulesRef.current.lab = snapshot.labSchedule;
       localStorage.setItem(`bloodbank_sched_lab_${snapshot.yearMonth}`, JSON.stringify(snapshot.labSchedule));
       await saveSchedule(snapshot.labSchedule).catch(console.warn);
     }
     if (snapshot.donorSchedule) {
+      localEditTimestampsRef.current[`donor_${snapshot.yearMonth}`] = nowMs;
       setDonorSchedule(snapshot.donorSchedule);
+      localSchedulesRef.current.donor = snapshot.donorSchedule;
       localStorage.setItem(`bloodbank_sched_donor_${snapshot.yearMonth}`, JSON.stringify(snapshot.donorSchedule));
       await saveSchedule(snapshot.donorSchedule).catch(console.warn);
     }
@@ -580,14 +703,21 @@ export default function App() {
   const handleImportBackupJson = async (payload: any) => {
     await createRealtimeBackupSnapshot('manual', 'จุดสำรองความปลอดภัยก่อนนำเข้าไฟล์ JSON');
 
+    const nowMs = Date.now();
     if (payload.labSchedule) {
+      const targetYM = payload.labSchedule.yearMonth || yearMonth;
+      localEditTimestampsRef.current[`lab_${targetYM}`] = nowMs;
       setLabSchedule(payload.labSchedule);
-      localStorage.setItem(`bloodbank_sched_lab_${payload.labSchedule.yearMonth || yearMonth}`, JSON.stringify(payload.labSchedule));
+      localSchedulesRef.current.lab = payload.labSchedule;
+      localStorage.setItem(`bloodbank_sched_lab_${targetYM}`, JSON.stringify(payload.labSchedule));
       await saveSchedule(payload.labSchedule).catch(console.warn);
     }
     if (payload.donorSchedule) {
+      const targetYM = payload.donorSchedule.yearMonth || yearMonth;
+      localEditTimestampsRef.current[`donor_${targetYM}`] = nowMs;
       setDonorSchedule(payload.donorSchedule);
-      localStorage.setItem(`bloodbank_sched_donor_${payload.donorSchedule.yearMonth || yearMonth}`, JSON.stringify(payload.donorSchedule));
+      localSchedulesRef.current.donor = payload.donorSchedule;
+      localStorage.setItem(`bloodbank_sched_donor_${targetYM}`, JSON.stringify(payload.donorSchedule));
       await saveSchedule(payload.donorSchedule).catch(console.warn);
     }
     if (payload.staffList && Array.isArray(payload.staffList)) {
@@ -605,7 +735,7 @@ export default function App() {
     await createRealtimeBackupSnapshot('imported', 'นำเข้าไฟล์ข้อมูลสำรอง JSON สำเร็จ');
   };
 
-  // Update a single shift cell
+  // Update a single shift cell (Immediate Real-time Backup & Rollback-proof)
   const handleUpdateShift = async (
     roomId: RoomId,
     staffId: string,
@@ -623,40 +753,50 @@ export default function App() {
       },
     };
 
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
     const updatedSchedule: MonthSchedule = {
       ...currentSchedule,
       assignments: newAssignments,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
       updatedBy: currentUser?.englishName || 'guest',
     };
 
+    // 1. Guard against remote listener rollback with local timestamp
+    const scheduleKey = `${roomId}_${yearMonth}`;
+    localEditTimestampsRef.current[scheduleKey] = nowMs;
+
+    // 2. Immediate optimistic state update
     if (isLab) {
       setLabSchedule(updatedSchedule);
+      localSchedulesRef.current.lab = updatedSchedule;
     } else {
       setDonorSchedule(updatedSchedule);
+      localSchedulesRef.current.donor = updatedSchedule;
     }
+
+    // 3. Immediately persist to localStorage
     localStorage.setItem(`bloodbank_sched_${roomId}_${yearMonth}`, JSON.stringify(updatedSchedule));
 
+    // 4. Back up data EVERY TIME on every edit immediately (เมื่อมีการแก้ไขให้สำรองข้อมูลทุกครั้ง)
+    const targetLabForBackup = isLab ? updatedSchedule : labSchedule;
+    const targetDonorForBackup = isLab ? donorSchedule : updatedSchedule;
+    const staffName = staffList.find((s) => s.id === staffId)?.thaiName || staffId;
+    createRealtimeBackupSnapshot(
+      'realtime_edit',
+      `แก้ไขเวร ${roomId === 'lab' ? 'ห้องปฏิบัติการ' : 'ห้องรับบริจาค'} (${staffName} วันที่ ${day}: "${shiftCode || 'ว่าง'}")`,
+      targetLabForBackup,
+      targetDonorForBackup
+    ).catch(console.warn);
+
+    // 5. Asynchronously persist to Firestore
     try {
       await saveSchedule(updatedSchedule);
     } catch (err) {
-      console.warn('Failed to save to Firestore, stored locally:', err);
+      console.warn('Failed to save to Firestore, safely preserved locally:', err);
     }
 
-    // Trigger Real-time Automated Backup (debounced 1.5s for seamless editing)
-    if (backupDebounceTimerRef.current) {
-      clearTimeout(backupDebounceTimerRef.current);
-    }
-    backupDebounceTimerRef.current = setTimeout(() => {
-      createRealtimeBackupSnapshot(
-        'realtime_edit',
-        undefined,
-        isLab ? updatedSchedule : labSchedule,
-        isLab ? donorSchedule : updatedSchedule
-      );
-    }, 1500);
-
-    // Trigger Debounced Auto-Sync to Google Drive if connected and enabled
+    // 6. Trigger Debounced Auto-Sync to Google Drive if connected and enabled
     if (autoSyncEnabled) {
       const token = getGoogleAccessToken();
       if (token) {
@@ -775,25 +915,35 @@ export default function App() {
 
   // Apply Auto-Schedule
   const handleApplyAutoSchedule = async (schedule: MonthSchedule) => {
+    const nowMs = Date.now();
+    const scheduleKey = `${schedule.roomId}_${schedule.yearMonth}`;
+    localEditTimestampsRef.current[scheduleKey] = nowMs;
+
     if (schedule.roomId === 'lab') {
       setLabSchedule(schedule);
+      localSchedulesRef.current.lab = schedule;
     } else {
       setDonorSchedule(schedule);
+      localSchedulesRef.current.donor = schedule;
     }
     localStorage.setItem(`bloodbank_sched_${schedule.roomId}_${schedule.yearMonth}`, JSON.stringify(schedule));
     try {
       await saveSchedule(schedule);
     } catch (err) {
-      console.warn('Firestore auto-schedule save error:', err);
+      console.warn('Firestore auto-schedule save notice (safely stored locally):', err);
     }
 
-    // Realtime Backup Snapshot
+    // Realtime Backup Snapshot immediately
     createRealtimeBackupSnapshot(
       'auto_schedule',
       `จัดเวรอัตโนมัติห้อง${schedule.roomId === 'lab' ? 'ปฏิบัติการ' : 'รับบริจาค'} (${formatYearMonthThai(yearMonth)})`,
       schedule.roomId === 'lab' ? schedule : labSchedule,
       schedule.roomId === 'donor' ? schedule : donorSchedule
     ).catch(console.warn);
+
+    setSuccessToast(
+      `จัดเวรอัตโนมัติห้อง${schedule.roomId === 'lab' ? 'ปฏิบัติการ' : 'รับบริจาค'} เรียบร้อยและสำรองข้อมูลแล้ว ✨`
+    );
   };
 
   // Staff Password Management
@@ -895,14 +1045,19 @@ export default function App() {
       updatedBy,
     };
 
+    const nowMs = Date.now();
     // 1. Optimistic Immediate Update - State & localStorage update instantly
     if (shouldClearLab) {
+      localEditTimestampsRef.current[`lab_${yearMonth}`] = nowMs;
       setLabSchedule(emptyLab);
+      localSchedulesRef.current.lab = emptyLab;
       localStorage.setItem(`bloodbank_sched_lab_${yearMonth}`, JSON.stringify(emptyLab));
     }
 
     if (shouldClearDonor) {
+      localEditTimestampsRef.current[`donor_${yearMonth}`] = nowMs;
       setDonorSchedule(emptyDonor);
+      localSchedulesRef.current.donor = emptyDonor;
       localStorage.setItem(`bloodbank_sched_donor_${yearMonth}`, JSON.stringify(emptyDonor));
     }
 

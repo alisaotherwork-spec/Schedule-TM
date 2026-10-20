@@ -312,7 +312,7 @@ export const saveSchedule = async (schedule: MonthSchedule) => {
     const cleanData = sanitizeForFirestore(schedule);
     await setDoc(doc(db, 'schedules', schedule.id), cleanData);
   } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, path);
+    console.warn(`Firestore saveSchedule notice for ${schedule.id} (safely retained locally):`, err);
   }
 };
 
@@ -327,7 +327,7 @@ export const saveRealtimeBackupSnapshot = async (snapshot: BackupSnapshot) => {
   try {
     const localRaw = localStorage.getItem('bloodbank_realtime_backups');
     const localList: BackupSnapshot[] = localRaw ? JSON.parse(localRaw) : [];
-    const updatedLocal = [snapshot, ...localList.filter((b) => b.id !== snapshot.id)].slice(0, 30);
+    const updatedLocal = [snapshot, ...localList.filter((b) => b.id !== snapshot.id)].slice(0, 80);
     localStorage.setItem('bloodbank_realtime_backups', JSON.stringify(updatedLocal));
   } catch (e) {
     console.warn('Local backup mirroring warning:', e);
